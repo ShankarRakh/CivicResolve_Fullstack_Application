@@ -1,0 +1,438 @@
+// CivicResolve - Municipal Grievance Management Platform
+// Full database schema for PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  CITIZEN
+  FIELD_OFFICER
+  ZONAL_OFFICER
+  DEPT_HEAD
+  ADMIN
+  COMMISSIONER
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  ASSIGNED
+  IN_PROGRESS
+  PENDING_INFO
+  RESOLVED
+  CLOSED
+  REJECTED
+  REOPENED
+}
+
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ComplaintSource {
+  WEB
+  MOBILE
+  WHATSAPP
+  PHONE
+  WALKIN
+}
+
+enum TimelineEventType {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  ESCALATED
+  COMMENTED
+  RESOLVED
+  REOPENED
+  ATTACHMENT_ADDED
+  SLA_BREACHED
+  REASSIGNED
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+enum Language {
+  EN
+  HI
+  MR
+}
+
+// ==========================================
+// REFERENCE DATA
+// ==========================================
+
+model Department {
+  id              String   @id @default(cuid())
+  name            String
+  nameHi          String?  @map("name_hi")
+  code            String   @unique
+  headId          String?  @map("head_id")
+  email           String?
+  phone           String?
+  defaultSlaHours Int      @default(48) @map("default_sla_hours")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  head        User?        @relation("DeptHead", fields: [headId], references: [id])
+  officers    User[]       @relation("DeptOfficers")
+  categories  Category[]
+  complaints  Complaint[]
+  slaConfigs  SlaConfig[]
+
+  @@map("departments")
+}
+
+model Category {
+  id              String   @id
+  name            String
+  nameHi          String?  @map("name_hi")
+  icon            String
+  color           String?
+  departmentId    String   @map("department_id")
+  defaultPriority Priority @default(MEDIUM) @map("default_priority")
+  defaultSlaHours Int      @default(72) @map("default_sla_hours")
+  isActive        Boolean  @default(true) @map("is_active")
+
+  department    Department    @relation(fields: [departmentId], references: [id])
+  subcategories Subcategory[]
+  complaints    Complaint[]
+  slaConfigs    SlaConfig[]
+
+  @@map("categories")
+}
+
+model Subcategory {
+  id              String  @id
+  name            String
+  nameHi          String? @map("name_hi")
+  categoryId      String  @map("category_id")
+  defaultSlaHours Int?    @map("default_sla_hours")
+  isActive        Boolean @default(true) @map("is_active")
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  complaints Complaint[]
+
+  @@map("subcategories")
+}
+
+model Zone {
+  id       String  @id @default(cuid())
+  name     String
+  code     String  @unique
+  headId   String? @map("head_id")
+  isActive Boolean @default(true) @map("is_active")
+
+  head       User?       @relation("ZoneHead", fields: [headId], references: [id])
+  officers   User[]      @relation("ZoneOfficers")
+  wards      Ward[]
+  complaints Complaint[]
+
+  @@map("zones")
+}
+
+model Ward {
+  id         String   @id @default(cuid())
+  name       String
+  number     Int      @unique
+  zoneId     String   @map("zone_id")
+  population Int?
+  areaSqkm   Decimal? @map("area_sqkm")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  zone       Zone        @relation(fields: [zoneId], references: [id])
+  officers   User[]      @relation("WardOfficers")
+  complaints Complaint[]
+
+  @@map("wards")
+}
+
+// ==========================================
+// USERS
+// ==========================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String?   @unique
+  phone             String?   @unique
+  passwordHash      String?   @map("password_hash")
+  name              String
+  avatarUrl         String?   @map("avatar_url")
+  role              Role      @default(CITIZEN)
+  departmentId      String?   @map("department_id")
+  wardId            String?   @map("ward_id")
+  zoneId            String?   @map("zone_id")
+  isActive          Boolean   @default(true) @map("is_active")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  aadhaarVerified   Boolean   @default(false) @map("aadhaar_verified")
+  fcmToken          String?   @map("fcm_token")
+  preferredLanguage Language  @default(EN) @map("preferred_language")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+
+  department           Department?          @relation("DeptOfficers", fields: [departmentId], references: [id])
+  ward                 Ward?                @relation("WardOfficers", fields: [wardId], references: [id])
+  zone                 Zone?                @relation("ZoneOfficers", fields: [zoneId], references: [id])
+  headOfDepartment     Department[]         @relation("DeptHead")
+  headOfZone           Zone[]               @relation("ZoneHead")
+  complaintsSubmitted  Complaint[]          @relation("CitizenComplaints")
+  complaintsAssigned   Complaint[]          @relation("AssignedOfficer")
+  complaintsEscalated  Complaint[]          @relation("EscalatedTo")
+  timelineEvents       ComplaintTimeline[]
+  comments             ComplaintComment[]
+  notifications        Notification[]
+  feedback             Feedback[]
+  auditLogs            AuditLog[]
+
+  @@map("users")
+}
+
+// ==========================================
+// COMPLAINTS
+// ==========================================
+
+model Complaint {
+  id            String          @id @default(cuid())
+  displayId     String          @unique @map("display_id")
+  citizenId     String          @map("citizen_id")
+  categoryId    String          @map("category_id")
+  subcategoryId String?         @map("subcategory_id")
+  title         String?
+  description   String
+  status        ComplaintStatus @default(SUBMITTED)
+  priority      Priority        @default(MEDIUM)
+  priorityScore Int?            @map("priority_score")
+  source        ComplaintSource @default(WEB)
+
+  // Location
+  latitude  Decimal?
+  longitude Decimal?
+  address   String?
+  landmark  String?
+  wardId    String? @map("ward_id")
+  zoneId    String? @map("zone_id")
+  pincode   String?
+
+  // Assignment
+  departmentId      String?   @map("department_id")
+  assignedOfficerId String?   @map("assigned_officer_id")
+  assignedAt        DateTime? @map("assigned_at")
+  escalationLevel   Int       @default(0) @map("escalation_level")
+  escalatedToId     String?   @map("escalated_to_id")
+
+  // SLA
+  slaHours    Int?      @map("sla_hours")
+  slaDeadline DateTime? @map("sla_deadline")
+  slaBreached Boolean   @default(false) @map("sla_breached")
+  breachedAt  DateTime? @map("breached_at")
+
+  // Resolution
+  resolvedAt      DateTime? @map("resolved_at")
+  resolutionNotes String?   @map("resolution_notes")
+  closedAt        DateTime? @map("closed_at")
+  closureReason   String?   @map("closure_reason")
+
+  // AI fields
+  aiCategoryConfidence Decimal? @map("ai_category_confidence")
+  aiPriorityConfidence Decimal? @map("ai_priority_confidence")
+  sentimentScore       Decimal? @map("sentiment_score")
+  duplicateOfId        String?  @map("duplicate_of_id")
+  duplicateConfidence  Decimal? @map("duplicate_confidence")
+
+  upvoteCount Int     @default(0) @map("upvote_count")
+  isPublic    Boolean @default(true) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  citizen         User         @relation("CitizenComplaints", fields: [citizenId], references: [id])
+  category        Category     @relation(fields: [categoryId], references: [id])
+  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
+  department      Department?  @relation(fields: [departmentId], references: [id])
+  ward            Ward?        @relation(fields: [wardId], references: [id])
+  zone            Zone?        @relation(fields: [zoneId], references: [id])
+  assignedOfficer User?        @relation("AssignedOfficer", fields: [assignedOfficerId], references: [id])
+  escalatedTo     User?        @relation("EscalatedTo", fields: [escalatedToId], references: [id])
+  duplicateOf     Complaint?   @relation("Duplicates", fields: [duplicateOfId], references: [id])
+  duplicates      Complaint[]  @relation("Duplicates")
+
+  attachments   ComplaintAttachment[]
+  timeline      ComplaintTimeline[]
+  comments      ComplaintComment[]
+  notifications Notification[]
+  feedback      Feedback[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([citizenId])
+  @@index([assignedOfficerId])
+  @@index([departmentId])
+  @@index([wardId])
+  @@index([createdAt])
+  @@map("complaints")
+}
+
+model ComplaintAttachment {
+  id           String   @id @default(cuid())
+  complaintId  String   @map("complaint_id")
+  fileUrl      String   @map("file_url")
+  fileType     String   @map("file_type")
+  fileSize     Int?     @map("file_size")
+  thumbnailUrl String?  @map("thumbnail_url")
+  aiAnalysis   Json?    @map("ai_analysis")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("complaint_attachments")
+}
+
+model ComplaintTimeline {
+  id            String            @id @default(cuid())
+  complaintId   String            @map("complaint_id")
+  eventType     TimelineEventType @map("event_type")
+  eventData     Json?             @map("event_data")
+  performedById String?           @map("performed_by_id")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  performedBy User?     @relation(fields: [performedById], references: [id])
+
+  @@map("complaint_timeline")
+}
+
+model ComplaintComment {
+  id          String   @id @default(cuid())
+  complaintId String   @map("complaint_id")
+  userId      String   @map("user_id")
+  comment     String
+  isInternal  Boolean  @default(false) @map("is_internal")
+  attachments Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@map("complaint_comments")
+}
+
+// ==========================================
+// NOTIFICATIONS & FEEDBACK
+// ==========================================
+
+model Notification {
+  id          String              @id @default(cuid())
+  userId      String              @map("user_id")
+  complaintId String?             @map("complaint_id")
+  type        String
+  title       String
+  body        String
+  isRead      Boolean             @default(false) @map("is_read")
+  sentVia     NotificationChannel @map("sent_via")
+  sentAt      DateTime?           @map("sent_at")
+  readAt      DateTime?           @map("read_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id])
+  complaint Complaint? @relation(fields: [complaintId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Feedback {
+  id                String   @id @default(cuid())
+  complaintId       String   @map("complaint_id")
+  citizenId         String   @map("citizen_id")
+  rating            Int
+  comment           String?
+  responseTimeRating  Int?   @map("response_time_rating")
+  resolutionQuality   Int?   @map("resolution_quality")
+  officerBehavior     Int?   @map("officer_behavior")
+  wouldRecommend      Boolean? @map("would_recommend")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  citizen   User      @relation(fields: [citizenId], references: [id])
+
+  @@map("feedback")
+}
+
+// ==========================================
+// CONFIGURATION
+// ==========================================
+
+model SlaConfig {
+  id              String    @id @default(cuid())
+  categoryId      String?   @map("category_id")
+  subcategoryId   String?   @map("subcategory_id")
+  departmentId    String?   @map("department_id")
+  priority        Priority
+  responseHours   Int       @map("response_hours")
+  resolutionHours Int       @map("resolution_hours")
+  escalationPct1  Int       @default(50) @map("escalation_pct_1")
+  escalationPct2  Int       @default(75) @map("escalation_pct_2")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  @@map("sla_configs")
+}
+
+model EscalationRule {
+  id              String   @id @default(cuid())
+  name            String
+  triggerPercent  Int      @map("trigger_percent")
+  escalateToRole  Role     @map("escalate_to_role")
+  notifyChannels  Json     @map("notify_channels")
+  autoReassign    Boolean  @default(false) @map("auto_reassign")
+  messageTemplate String?  @map("message_template")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("escalation_rules")
+}
+
+// ==========================================
+// AUDIT
+// ==========================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
