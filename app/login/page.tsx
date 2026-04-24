@@ -70,18 +70,40 @@ export default function LoginPage() {
       return
     }
     setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    
-    // Check for admin login
-    if (email.includes('admin')) {
-      login('admin')
-      toast.success('Welcome, Admin!')
-      router.push('/admin')
-    } else {
-      login('officer')
-      toast.success('Login successful!')
-      router.push('/officer')
+
+    try {
+      const response = await fetch('/api/auth/officer/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error(data.error || 'Login failed')
+        return
+      }
+
+      // Store JWT token and user data
+      localStorage.setItem('officer_token', data.token)
+      localStorage.setItem('officer_user', JSON.stringify(data.user))
+
+      // Route based on role
+      if (data.user.role === 'ADMIN' || data.user.role === 'COMMISSIONER') {
+        login('admin')
+        toast.success('Welcome, Admin!')
+        router.push('/admin')
+      } else {
+        login('officer')
+        toast.success('Login successful!')
+        router.push('/officer')
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      toast.error('Network error. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
