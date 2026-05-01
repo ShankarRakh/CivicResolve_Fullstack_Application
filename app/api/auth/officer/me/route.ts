@@ -23,18 +23,34 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch latest user data from DB with department/ward/zone names
-    const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.is_active, u.is_verified,
-              u.department_id, u.ward_id, u.zone_id, u.preferred_language,
-              d.name as department_name, w.name as ward_name, z.name as zone_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       LEFT JOIN wards w ON u.ward_id = w.id
-       LEFT JOIN zones z ON u.zone_id = z.id
-       WHERE u.id = $1`,
-      [payload.userId]
-    )
+    // Determine which table to query based on role
+    const isAdmin = payload.role === 'ADMIN' || payload.role === 'COMMISSIONER'
+
+    let result
+
+    if (isAdmin) {
+      result = await pool.query(
+        `SELECT id, email, name, admin_role as role, avatar_url, is_active, is_verified,
+                preferred_language, 'ADMIN' as user_type
+         FROM admins
+         WHERE id = $1`,
+        [payload.userId]
+      )
+    } else {
+      // Officer - join with department, ward, zone for names
+      result = await pool.query(
+        `SELECT o.id, o.email, o.name, o.officer_role as role, o.avatar_url,
+                o.is_active, o.is_verified, o.department_id, o.ward_id, o.zone_id,
+                o.preferred_language, 'OFFICER' as user_type,
+                d.name as department_name, w.name as ward_name, z.name as zone_name
+         FROM officers o
+         LEFT JOIN departments d ON o.department_id = d.id
+         LEFT JOIN wards w ON o.ward_id = w.id
+         LEFT JOIN zones z ON o.zone_id = z.id
+         WHERE o.id = $1`,
+        [payload.userId]
+      )
+    }
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -51,12 +67,13 @@ export async function GET(request: NextRequest) {
         name: user.name,
         email: user.email,
         role: user.role,
-        departmentId: user.department_id,
-        departmentName: user.department_name,
-        wardId: user.ward_id,
-        wardName: user.ward_name,
-        zoneId: user.zone_id,
-        zoneName: user.zone_name,
+        userType: user.user_type,
+        departmentId: user.department_id || null,
+        departmentName: user.department_name || null,
+        wardId: user.ward_id || null,
+        wardName: user.ward_name || null,
+        zoneId: user.zone_id || null,
+        zoneName: user.zone_name || null,
         avatarUrl: user.avatar_url,
         isVerified: user.is_verified,
       },

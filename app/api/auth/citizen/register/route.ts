@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
 
     const { fullName, email, phone, password, addressLine1, addressLine2, city, pincode, ward } = parsed.data
 
-    // Check if email already exists
+    // Check if email already exists in citizens table
     const existingEmail = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id FROM citizens WHERE email = $1',
       [email]
     )
     if (existingEmail.rows.length > 0) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Check if phone already exists
     const existingPhone = await pool.query(
-      'SELECT id FROM users WHERE phone = $1',
+      'SELECT id FROM citizens WHERE phone = $1',
       ['+91' + phone]
     )
     if (existingPhone.rows.length > 0) {
@@ -53,34 +53,34 @@ export async function POST(request: NextRequest) {
     // Build full address
     const fullAddress = [addressLine1, addressLine2, city, pincode].filter(Boolean).join(', ')
 
-    // Insert the citizen into the database
+    // Insert the citizen into the citizens table (no role column needed - table IS the role)
     const result = await pool.query(
-      `INSERT INTO users (
-        id, email, phone, password_hash, name, role, is_active, is_verified,
-        preferred_language, created_at, updated_at
-      ) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'CITIZEN'::"Role", true, false, 'EN', NOW(), NOW())
-      RETURNING id, email, phone, name, role::text`,
-      [email, '+91' + phone, passwordHash, fullName]
+      `INSERT INTO citizens (
+        id, email, phone, password_hash, name, address, city, pincode,
+        is_active, is_verified, preferred_language, created_at, updated_at
+      ) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, true, false, 'EN', NOW(), NOW())
+      RETURNING id, email, phone, name`,
+      [email, '+91' + phone, passwordHash, fullName, fullAddress, city, pincode]
     )
 
-    const user = result.rows[0]
+    const citizen = result.rows[0]
 
     // Generate JWT token
     const token = signToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
+      userId: citizen.id,
+      email: citizen.email,
+      role: 'CITIZEN',
+      name: citizen.name,
     })
 
     return NextResponse.json({
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
+        id: citizen.id,
+        name: citizen.name,
+        email: citizen.email,
+        phone: citizen.phone,
+        role: 'CITIZEN',
         city,
         pincode,
         address: fullAddress,

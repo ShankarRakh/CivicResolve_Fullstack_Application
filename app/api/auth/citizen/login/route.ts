@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = parsed.data
 
-    // Query citizen by email with CITIZEN role
+    // Query directly from citizens table (no role filter needed)
     const result = await pool.query(
-      `SELECT id, email, phone, password_hash, name, role::text, avatar_url,
+      `SELECT id, email, phone, password_hash, name, avatar_url,
               is_active, is_verified, aadhaar_verified
-       FROM users
-       WHERE email = $1 AND role::text = 'CITIZEN'`,
+       FROM citizens
+       WHERE email = $1`,
       [email]
     )
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Update last login timestamp
     await pool.query(
-      'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+      'UPDATE citizens SET last_login_at = NOW() WHERE id = $1',
       [citizen.id]
     )
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const token = signToken({
       userId: citizen.id,
       email: citizen.email,
-      role: citizen.role,
+      role: 'CITIZEN',
       name: citizen.name,
     })
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         name: citizen.name,
         email: citizen.email,
         phone: citizen.phone,
-        role: citizen.role,
+        role: 'CITIZEN',
         avatarUrl: citizen.avatar_url,
         isVerified: citizen.is_verified,
         aadhaarVerified: citizen.aadhaar_verified,
