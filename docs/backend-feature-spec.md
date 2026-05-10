@@ -1,105 +1,161 @@
-# CivicResolve Backend Feature Spec (Minimal + Complete)
+# CivicResolve Backend Feature Spec (Full Plan)
 
-This document defines the backend features, data flows, and API contracts required to support the current frontend and planned MVP. It is optimized for a minimal yet complete implementation using Next.js Route Handlers + Prisma + Supabase Postgres.
+This document consolidates all features and flows we planned in this chat. It is a guide for AI IDEs to generate the backend and align frontend updates. It keeps the backend minimal where possible, but includes every feature that was agreed.
 
 ---
 
 ## 1) Scope and Principles
 
-- Keep the backend minimal, but fully functional for planned features.
-- No enterprise extras (soft delete, advanced audit, multi-tenant).
-- Use only models in the current Prisma schema.
-- Prefer simple REST endpoints.
-- Use role-based access (citizen/officer/admin).
+- Implement all planned features, but keep schema minimal.
+- Prefer simple REST APIs; avoid premature microservices.
+- Use the current Prisma schema as baseline and add only when required.
+- Role-based access control (RBAC) is required.
+- Indian municipal context is mandatory (wards, zones, local categories).
 
 ---
 
 ## 2) Tech Stack
 
 - Runtime: Node.js
-- Framework: Next.js App Router API routes (`app/api/...`)
+- Backend: Next.js App Router API routes (`app/api/...`)
 - ORM: Prisma
 - DB: PostgreSQL (Supabase)
-- Auth: JWT (simple, stateless) or NextAuth (optional)
-- File storage: Supabase Storage (for complaint images)
+- Auth: Email + password (JWT or NextAuth)
+- File storage: Supabase Storage (complaint images)
+- Notifications: In-app notifications (email optional)
+- Maps: Mappls (MapMyIndia) or Google Maps for geocoding
 
 ---
 
-## 3) Roles and Permissions
+## 3) Roles and Permissions (Simplified)
 
 ### Roles
-- CITIZEN
-- OFFICER
-- ADMIN
+- Citizen
+- Officer
+- Admin
+- Supervisor (optional)
 
-### Permissions
-| Feature | Citizen | Officer | Admin |
-|---------|---------|---------|-------|
-| Submit complaint | Yes | No | No |
-| Track own complaints | Yes | No | No |
-| View assigned complaints | No | Yes | Yes |
-| Update complaint status | No | Yes | Yes |
-| Assign complaint | No | No | Yes |
-| View dashboards | Limited | Yes | Yes |
-| Manage reference data | No | No | Yes |
+All municipal roles (Field Worker, Ward Officer, Dept Head, Zonal Officer, Commissioner) are represented as **Officer** for MVP. If you want one extra level, add **Supervisor** as a lightweight role for escalation visibility without expanding the full hierarchy. If needed later, extend `User.role` or add `User.roleType`.
 
 ---
 
-## 4) Core Features and Data Flow
+## 4) Complaint Categories (India-Specific)
 
-### A) Complaint Submission (Citizen)
-**Flow**
+### Roads & Footpaths (PWD)
+- Pothole, Road damage, Footpath broken, Speed breaker issue, Road marking faded, Waterlogging
+
+### Water Supply (Jal Vibhag)
+- No water, Low pressure, Contaminated water, Pipeline leakage, Meter issue, Illegal connection
+
+### Sewerage & Drainage (Nali/Gatar)
+- Blocked drain, Overflowing manhole, Sewage leak, Storm drain clogged, Bad odor
+
+### Garbage & Sanitation (Solid Waste)
+- Garbage not collected, Overflowing bin, Street sweeping, Dead animal removal, Public toilet
+
+### Street Lighting (Electrical)
+- Light not working, Pole damaged, New light request, Timer malfunction
+
+### Property Tax & Assessment
+- Wrong assessment, Payment issue, Name transfer, New assessment
+
+### Building & Construction (Town Planning)
+- Illegal construction, Encroachment, Dangerous structure, Plan approval
+
+### Parks & Gardens
+- Maintenance needed, Fallen tree, Equipment broken, Irrigation issue
+
+### Traffic & Parking
+- Illegal parking, Signal malfunction, Missing sign, Zebra crossing faded
+
+### Health & Hygiene
+- Mosquito breeding, Disease outbreak, Food safety, Stray animals
+
+### Noise & Pollution
+- Noise complaint, Air pollution, Water pollution, Construction dust
+
+### Other
+- General inquiry, Suggestion, Other issues
+
+---
+
+## 5) End-to-End Feature Flows
+
+### A) Complaint Submission
 1. Citizen submits complaint with category, description, location, images
-2. Backend sets status = PENDING, priority default = MEDIUM
-3. Complaint is stored in DB
-4. Timeline entry created: "Complaint submitted"
-5. (Optional) Auto-assign officer based on ward and category
+2. System stores complaint, sets status PENDING
+3. Timeline entry: "Complaint submitted"
+4. Assign officer by ward + department
+5. Notify citizen and officer
 
-**Required fields**
-- categoryId
-- description
-- location: address, latitude, longitude, wardId (optional if unknown)
-- images[] (optional)
+### B) SLA Escalation
+1. SLA clock starts on creation
+2. Reminder at 50 percent SLA
+3. Escalate at 75 percent SLA
+4. Breach at 100 percent -> admin escalation
 
----
+### C) Duplicate Detection (Planned)
+1. Compare location radius and text similarity
+2. If duplicate, link to existing complaint and increment priority
 
-### B) Officer Queue & Status Updates
-**Flow**
-1. Officer fetches assigned complaints
-2. Officer updates status (ASSIGNED, IN_PROGRESS, RESOLVED, REJECTED, CLOSED)
-3. Timeline entry is created
-4. Notification created for citizen
-
----
-
-### C) Admin Assignment
-**Flow**
-1. Admin lists unassigned complaints
-2. Admin assigns officer + department
-3. Status becomes ASSIGNED
-4. Timeline entry + notification to officer
+### D) In-App AI Assistant (Phase 2)
+1. Citizen describes issue in app
+2. AI suggests category and priority
+3. AI drafts a concise complaint summary for officers
 
 ---
 
-### D) Complaint Timeline (Citizen/Officer/Admin)
-- Timeline entries show who did what and when
-- Used for citizen tracking UI
+## 6) Full Feature List (All Modules)
+
+### Auth and Users
+- Email + password login
+- Role-based access control
+- Profile view/edit
+
+### Complaint Management
+- Create complaint
+- Complaint ID format (CR-YYYY-XXXXX)
+- Track status
+- Timeline view
+- Upload photos
+- Reopen complaint
+- Comment thread (optional, can be added later)
+
+### Officer Workflow
+- Assigned queue
+- Status updates
+- Reassign to department or officer
+- SLA countdown
+
+### Admin Panel
+- Department CRUD
+- Category CRUD
+- Ward/Zone management
+- Officer onboarding
+- SLA configuration
+
+### Notifications
+- In-app notification center
+- Email notifications (optional)
+
+### Analytics and Reporting
+- Department performance
+- Ward-wise heatmap
+- Officer performance
+- Category trends
+
+### AI/Agentic Features (Phase 2 - Separate Module)
+- In-app AI assistant (chatbot)
+- Auto classification (text + image)
+- Priority scoring
+- Duplicate detection
+- Smart routing
+- Resolution verification (before/after photos)
+- Analytics prediction
 
 ---
 
-### E) Notifications
-- Created on major actions: assignment, status change, resolution
-- Stored in DB; frontend polls to show notification list
-
----
-
-### F) Feedback (Citizen)
-- Citizen rates complaint after resolution
-- One feedback per complaint
-
----
-
-## 5) Database Models (from schema.prisma)
+## 7) Database Models (Current Schema)
 
 ### Department
 - id, name, email, phone, headId
@@ -108,18 +164,18 @@ This document defines the backend features, data flows, and API contracts requir
 - id, name, icon
 
 ### Ward
-- id, name, zone (string)
+- id, name, zone
 
 ### User
-- id, email, phone, passwordHash, name, role, departmentId
+- id, email, passwordHash, name, role, departmentId
 
 ### Complaint
 - citizenId, categoryId, description, status, priority
-- location: address, latitude, longitude, wardId
-- assignment: departmentId, assignedOfficerId
+- address, latitude, longitude, wardId
+- departmentId, assignedOfficerId
 - slaDeadline
 - images[]
-- timeline, feedback relations
+- timeline, feedback
 
 ### ComplaintTimeline
 - complaintId, status, message, createdAt
@@ -132,20 +188,30 @@ This document defines the backend features, data flows, and API contracts requir
 
 ---
 
-## 6) REST API Endpoints
+## 8) Schema Extensions (If Needed Later)
+
+Only add these if the related feature is actually implemented:
+
+- `ComplaintComment` table for threaded discussion
+- `ComplaintDuplicate` link table for duplicates
+- `UserRoleDetails` table if granular role hierarchy needed
+- `SlaConfig` table if SLA differs by category or priority
+
+---
+
+## 9) REST API Endpoints (Planned)
 
 ### Auth
 - `POST /api/auth/register`
 - `POST /api/auth/login`
-- `POST /api/auth/logout`
 - `GET /api/auth/me`
 
 ### Complaints
-- `POST /api/complaints` (Citizen)
-- `GET /api/complaints` (Citizen: own, Officer/Admin: assigned)
+- `POST /api/complaints`
+- `GET /api/complaints`
 - `GET /api/complaints/:id`
-- `PATCH /api/complaints/:id/status` (Officer/Admin)
-- `PATCH /api/complaints/:id/assign` (Admin)
+- `PATCH /api/complaints/:id/status`
+- `PATCH /api/complaints/:id/assign`
 
 ### Timeline
 - `GET /api/complaints/:id/timeline`
@@ -165,57 +231,26 @@ This document defines the backend features, data flows, and API contracts requir
 
 ---
 
-## 7) Minimal Validation Rules
+## 10) Implementation Order
 
-### Complaint Create
-- categoryId: required
-- description: required, min 10 chars
-- latitude/longitude: optional but must be both if provided
-
-### Status Update
-- status: must be in enum
-- only OFFICER or ADMIN
-
-### Assignment
-- assignedOfficerId + departmentId required
-- only ADMIN
-
----
-
-## 8) Image Handling
-
-- Images stored in Supabase Storage
-- Backend receives public image URLs
-- `Complaint.images` is an array of image URLs
-
----
-
-## 9) Frontend Adjustments Needed (if any)
-
-- Replace mock data calls with API fetches
-- Use auth token from login for API calls
-- Load complaint timeline from `/api/complaints/:id/timeline`
-
----
-
-## 10) Implementation Order (Recommended)
-
-1. Auth endpoints (register/login/me)
-2. Reference data (departments, categories, wards)
-3. Complaint creation and listing
+1. Auth + RBAC
+2. Reference data
+3. Complaint creation + list
 4. Status updates + timeline
 5. Notifications
 6. Feedback
+7. Admin CRUD
+8. Analytics
+9. AI features
 
 ---
 
 ## 11) Notes for AI IDE
 
-- Keep backend minimal and aligned to schema
-- No advanced role hierarchy beyond citizen/officer/admin
-- No extra tables unless explicitly required
-- Timeline entries are required for complaint detail view
-- Notifications required for user dashboard
+- Implement all features in this document
+- Keep schema minimal and aligned to Prisma
+- Add extension tables only when implementing their feature
+- Maintain Indian municipal context in flows and data
 
 ---
 
