@@ -23,13 +23,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch latest user data from DB with department name
+    // Fetch latest citizen data from DB
     const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role::text, u.department_id,
-              d.name as department_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.id = $1`,
+      `SELECT id, email, phone, name, role::text
+       FROM users
+       WHERE id = $1 AND role::text = 'CITIZEN'`,
       [payload.userId]
     )
 
@@ -47,13 +45,12 @@ export async function GET(request: NextRequest) {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
-        departmentId: user.department_id,
-        departmentName: user.department_name,
       },
     })
   } catch (error) {
-    console.error('Auth verification error:', error)
+    console.error('Citizen auth verification error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

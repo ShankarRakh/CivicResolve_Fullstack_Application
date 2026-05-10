@@ -78,7 +78,7 @@ export default function LoginPage() {
       localStorage.setItem('citizen_token', data.token)
       localStorage.setItem('citizen_user', JSON.stringify(data.user))
 
-      login('citizen')
+      login('CITIZEN')
       toast.success('Login successful!')
       router.push('/citizen')
     } catch (error) {
@@ -115,12 +115,12 @@ export default function LoginPage() {
       localStorage.setItem('officer_user', JSON.stringify(data.user))
 
       // Route based on role
-      if (data.user.role === 'ADMIN' || data.user.role === 'COMMISSIONER') {
-        login('admin')
+      if (data.user.role === 'ADMIN') {
+        login('ADMIN')
         toast.success('Welcome, Admin!')
         router.push('/admin')
       } else {
-        login('officer')
+        login('OFFICER')
         toast.success('Login successful!')
         router.push('/officer')
       }

@@ -38,10 +38,10 @@ const STEPS: { id: Step; title: string }[] = [
 ]
 
 const PRIORITIES: { value: ComplaintPriority; label: string; description: string }[] = [
-  { value: 'low', label: 'Low', description: 'Inconvenience but manageable' },
-  { value: 'medium', label: 'Medium', description: 'Affecting daily life' },
-  { value: 'high', label: 'High', description: 'Safety risk / health hazard' },
-  { value: 'critical', label: 'Critical', description: 'Immediate danger to life' },
+  { value: 'LOW', label: 'Low', description: 'Inconvenience but manageable' },
+  { value: 'MEDIUM', label: 'Medium', description: 'Affecting daily life' },
+  { value: 'HIGH', label: 'High', description: 'Safety risk / health hazard' },
+  { value: 'CRITICAL', label: 'Critical', description: 'Immediate danger to life' },
 ]
 
 export default function NewComplaintPage() {
@@ -63,7 +63,7 @@ export default function NewComplaintPage() {
   const [selectedSubcategory, setSelectedSubcategory] = useState<SubCategory | null>(null)
   const [description, setDescription] = useState('')
   const [images, setImages] = useState<string[]>([])
-  const [priority, setPriority] = useState<ComplaintPriority>('medium')
+  const [priority, setPriority] = useState<ComplaintPriority>('MEDIUM')
   const [confirmed, setConfirmed] = useState(false)
 
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep)

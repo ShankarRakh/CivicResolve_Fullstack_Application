@@ -3,13 +3,17 @@ import type { ComplaintPriority } from '@/types'
 import { PRIORITY_CONFIG } from '@/lib/constants'
 
 interface PriorityBadgeProps {
-  priority: ComplaintPriority
+  priority: ComplaintPriority | string
   className?: string
 }
 
+const FALLBACK = { label: 'Unknown', color: 'text-gray-700', bgColor: 'bg-gray-100' }
+
 export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
-  const config = PRIORITY_CONFIG[priority]
-  
+  // Normalize to uppercase to handle both 'high' and 'HIGH'
+  const key = priority.toUpperCase() as ComplaintPriority
+  const config = PRIORITY_CONFIG[key] || FALLBACK
+
   return (
     <span
       className={cn(

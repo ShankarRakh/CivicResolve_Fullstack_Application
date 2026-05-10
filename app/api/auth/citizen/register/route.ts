@@ -56,9 +56,8 @@ export async function POST(request: NextRequest) {
     // Insert the citizen into the database
     const result = await pool.query(
       `INSERT INTO users (
-        id, email, phone, password_hash, name, role, is_active, is_verified,
-        preferred_language, created_at, updated_at
-      ) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'CITIZEN'::"Role", true, false, 'EN', NOW(), NOW())
+        id, email, phone, password_hash, name, role
+      ) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'CITIZEN'::"Role")
       RETURNING id, email, phone, name, role::text`,
       [email, '+91' + phone, passwordHash, fullName]
     )

@@ -89,7 +89,7 @@ function HeroSection() {
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">COMPLAINT ID</span>
-                    <StatusBadge status="in_progress" />
+                    <StatusBadge status="IN_PROGRESS" />
                   </div>
                   <p className="font-mono text-lg font-semibold">CR-2026-00142</p>
                   <div className="space-y-2 text-sm">

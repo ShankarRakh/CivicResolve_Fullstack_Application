@@ -4,7 +4,7 @@ import pool from '@/lib/db'
 import { signToken } from '@/lib/jwt'
 
 // Officer roles from the Prisma schema
-const OFFICER_ROLES = ['FIELD_OFFICER', 'ZONAL_OFFICER', 'DEPT_HEAD', 'ADMIN', 'COMMISSIONER']
+const OFFICER_ROLES = ['OFFICER', 'ADMIN']
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,8 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Query the users table for the officer by email with an officer role
     const result = await pool.query(
-      `SELECT id, email, password_hash, name, role::text, department_id, ward_id, zone_id,
-              is_active, is_verified, avatar_url
+      `SELECT id, email, password_hash, name, role::text, department_id
        FROM users
        WHERE email = $1 AND role::text = ANY($2::text[])`,
       [email, OFFICER_ROLES]
@@ -34,14 +33,6 @@ export async function POST(request: NextRequest) {
     }
 
     const officer = result.rows[0]
-
-    // Check if account is active
-    if (!officer.is_active) {
-      return NextResponse.json(
-        { error: 'Account is deactivated. Contact your department head.' },
-        { status: 403 }
-      )
-    }
 
     // Check password hash exists
     if (!officer.password_hash) {
@@ -60,11 +51,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update last login timestamp
-    await pool.query(
-      'UPDATE users SET last_login_at = NOW() WHERE id = $1',
-      [officer.id]
-    )
 
     // Generate JWT
     const token = signToken({
@@ -82,10 +68,6 @@ export async function POST(request: NextRequest) {
         email: officer.email,
         role: officer.role,
         departmentId: officer.department_id,
-        wardId: officer.ward_id,
-        zoneId: officer.zone_id,
-        avatarUrl: officer.avatar_url,
-        isVerified: officer.is_verified,
       },
     })
   } catch (error: unknown) {
