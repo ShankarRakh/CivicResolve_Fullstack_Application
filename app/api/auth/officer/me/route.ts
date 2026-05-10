@@ -23,15 +23,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch latest user data from DB with department/ward/zone names
+    // Fetch latest user data from DB with department name
     const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.is_active, u.is_verified,
-              u.department_id, u.ward_id, u.zone_id, u.preferred_language,
-              d.name as department_name, w.name as ward_name, z.name as zone_name
+      `SELECT u.id, u.email, u.name, u.role::text, u.department_id,
+              d.name as department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
-       LEFT JOIN wards w ON u.ward_id = w.id
-       LEFT JOIN zones z ON u.zone_id = z.id
        WHERE u.id = $1`,
       [payload.userId]
     )
@@ -53,12 +50,6 @@ export async function GET(request: NextRequest) {
         role: user.role,
         departmentId: user.department_id,
         departmentName: user.department_name,
-        wardId: user.ward_id,
-        wardName: user.ward_name,
-        zoneId: user.zone_id,
-        zoneName: user.zone_name,
-        avatarUrl: user.avatar_url,
-        isVerified: user.is_verified,
       },
     })
   } catch (error) {

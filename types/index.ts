@@ -1,45 +1,71 @@
 // Shared type definitions for CivicResolve
+// Aligned with Prisma schema
 
-export type UserRole = 'citizen' | 'officer' | 'field_worker' | 'admin'
+// ==========================================
+// Enums matching Prisma schema
+// ==========================================
+
+export type UserRole = 'CITIZEN' | 'OFFICER' | 'ADMIN'
 
 export type ComplaintStatus =
-  | 'pending'
-  | 'assigned'
-  | 'in_progress'
-  | 'work_completed'
-  | 'resolved'
-  | 'rejected'
-  | 'closed'
-  | 'reopened'
+  | 'PENDING'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'REJECTED'
+  | 'CLOSED'
 
-export type ComplaintPriority = 'low' | 'medium' | 'high' | 'critical'
+export type ComplaintPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+// ==========================================
+// Frontend-only types used by UI components
+// (These are used in constants.ts & complaint pages,
+//  not necessarily mirroring Prisma models 1:1)
+// ==========================================
+
+export type NotificationType = 'status_update' | 'comment' | 'assignment' | 'sla_warning' | 'sla_breach' | 'system'
+
+export interface SubCategory {
+  id: string
+  name: string
+  slaHours: number
+}
+
+// ==========================================
+// Models matching Prisma schema
+// ==========================================
 
 export interface User {
   id: string
   name: string
-  phone?: string
-  email?: string
+  phone: string
+  email: string
   role: UserRole
-  ward?: string
-  zone?: string
+  departmentId?: string
   department?: string
-  avatar?: string
-  isVerified?: boolean
-  aadhaarLinked?: boolean
   createdAt?: string
-}
-
-export interface Subcategory {
-  id: string
-  name: string
-  slaHours: number
 }
 
 export interface Category {
   id: string
   name: string
   icon: string
-  subcategories: Subcategory[]
+  // subcategories is frontend-only; not in Prisma Category model
+  subcategories?: SubCategory[]
+}
+
+export interface Ward {
+  id: string
+  name: string
+  zone: string
+}
+
+export interface Department {
+  id: string
+  name: string
+  email?: string
+  phone?: string
+  headId?: string
 }
 
 export interface Location {
@@ -53,11 +79,45 @@ export interface Location {
 
 export interface TimelineEntry {
   id: string
+  complaintId?: string
   status: string
   message: string
-  by: string
-  byRole: string
-  timestamp: string
+  by?: string
+  byRole?: string
+  createdAt?: string
+  timestamp?: string
+}
+
+export interface Complaint {
+  id: string
+  displayId?: string
+  description: string
+  category: Category
+  subcategory?: SubCategory
+  status: ComplaintStatus
+  priority: ComplaintPriority
+  address?: string
+  latitude?: number
+  longitude?: number
+  wardId?: string
+  images: string[]
+  citizenId: string
+  citizenName?: string
+  assignedOfficerId?: string
+  assignedOfficerName?: string
+  departmentId?: string
+  departmentName?: string
+  slaDeadline?: string
+  slaBreached?: boolean
+  slaRemainingHours?: number
+  upvotes?: number
+  hasUpvoted?: boolean
+  location?: Location
+  timeline: TimelineEntry[]
+  comments?: Comment[]
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
 }
 
 export interface Comment {
@@ -69,42 +129,16 @@ export interface Comment {
   timestamp: string
 }
 
-export interface Complaint {
-  id: string
-  displayId: string
-  description: string
-  category: Category
-  subcategory?: Subcategory
-  status: ComplaintStatus
-  priority: ComplaintPriority
-  location: Location
-  images: string[]
-  citizenId: string
-  citizenName: string
-  assignedOfficerId?: string
-  assignedOfficerName?: string
-  departmentId?: string
-  departmentName?: string
-  upvotes: number
-  hasUpvoted: boolean
-  slaDeadline?: string
-  slaBreached: boolean
-  slaRemainingHours?: number
-  timeline: TimelineEntry[]
-  comments: Comment[]
-  createdAt: string
-  updatedAt: string
-  resolvedAt?: string
-}
-
 export interface Notification {
   id: string
+  userId?: string
   type: string
-  title: string
+  title?: string
   message: string
   complaintId?: string
   isRead: boolean
-  timestamp: string
+  createdAt?: string
+  timestamp?: string
 }
 
 export interface Announcement {
@@ -115,6 +149,15 @@ export interface Announcement {
   targetId?: string
   isPublished: boolean
   publishedAt?: string
+  createdAt: string
+}
+
+export interface Feedback {
+  id: string
+  complaintId: string
+  citizenId: string
+  rating: number
+  comment?: string
   createdAt: string
 }
 

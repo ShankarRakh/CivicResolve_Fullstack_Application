@@ -19,14 +19,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((role: UserRole) => {
     switch (role) {
-      case 'citizen':
+      case 'CITIZEN':
         setUser(MOCK_CITIZEN)
         break
-      case 'officer':
-      case 'field_worker':
+      case 'OFFICER':
         setUser(MOCK_OFFICER)
         break
-      case 'admin':
+      case 'ADMIN':
         setUser(MOCK_ADMIN)
         break
       default:

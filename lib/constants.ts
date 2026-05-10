@@ -1,21 +1,19 @@
 import type { Category, ComplaintStatus, ComplaintPriority } from '@/types'
 
 export const COMPLAINT_STATUS_CONFIG: Record<ComplaintStatus, { label: string; color: string; bgColor: string }> = {
-  pending: { label: 'Pending', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  assigned: { label: 'Assigned', color: 'text-indigo-700', bgColor: 'bg-indigo-100' },
-  in_progress: { label: 'In Progress', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-  work_completed: { label: 'Work Completed', color: 'text-teal-700', bgColor: 'bg-teal-100' },
-  resolved: { label: 'Resolved', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
-  rejected: { label: 'Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
-  closed: { label: 'Closed', color: 'text-gray-700', bgColor: 'bg-gray-100' },
-  reopened: { label: 'Reopened', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+  PENDING: { label: 'Pending', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  ASSIGNED: { label: 'Assigned', color: 'text-indigo-700', bgColor: 'bg-indigo-100' },
+  IN_PROGRESS: { label: 'In Progress', color: 'text-amber-700', bgColor: 'bg-amber-100' },
+  RESOLVED: { label: 'Resolved', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+  REJECTED: { label: 'Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
+  CLOSED: { label: 'Closed', color: 'text-gray-700', bgColor: 'bg-gray-100' },
 }
 
 export const PRIORITY_CONFIG: Record<ComplaintPriority, { label: string; color: string; bgColor: string }> = {
-  low: { label: 'Low', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
-  medium: { label: 'Medium', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-  high: { label: 'High', color: 'text-red-700', bgColor: 'bg-red-100' },
-  critical: { label: 'Critical', color: 'text-red-900', bgColor: 'bg-red-200' },
+  LOW: { label: 'Low', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+  MEDIUM: { label: 'Medium', color: 'text-amber-700', bgColor: 'bg-amber-100' },
+  HIGH: { label: 'High', color: 'text-red-700', bgColor: 'bg-red-100' },
+  CRITICAL: { label: 'Critical', color: 'text-red-900', bgColor: 'bg-red-200' },
 }
 
 export const CATEGORIES: Category[] = [

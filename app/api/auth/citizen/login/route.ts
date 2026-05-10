@@ -25,8 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Query citizen by email with CITIZEN role
     const result = await pool.query(
-      `SELECT id, email, phone, password_hash, name, role::text, avatar_url,
-              is_active, is_verified, aadhaar_verified
+      `SELECT id, email, phone, password_hash, name, role::text
        FROM users
        WHERE email = $1 AND role::text = 'CITIZEN'`,
       [email]
@@ -40,14 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     const citizen = result.rows[0]
-
-    // Check if account is active
-    if (!citizen.is_active) {
-      return NextResponse.json(
-        { error: 'Account is deactivated. Contact support.' },
-        { status: 403 }
-      )
-    }
 
     // Check password hash exists
     if (!citizen.password_hash) {
@@ -66,11 +57,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update last login timestamp
-    await pool.query(
-      'UPDATE users SET last_login_at = NOW() WHERE id = $1',
-      [citizen.id]
-    )
 
     // Generate JWT
     const token = signToken({
@@ -88,9 +74,6 @@ export async function POST(request: NextRequest) {
         email: citizen.email,
         phone: citizen.phone,
         role: citizen.role,
-        avatarUrl: citizen.avatar_url,
-        isVerified: citizen.is_verified,
-        aadhaarVerified: citizen.aadhaar_verified,
       },
     })
 

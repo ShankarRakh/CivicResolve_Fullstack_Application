@@ -209,7 +209,7 @@ export default function RegisterPage() {
       localStorage.setItem('citizen_token', data.token)
       localStorage.setItem('citizen_user', JSON.stringify(data.user))
 
-      login('citizen')
+      login('CITIZEN')
       toast.success('Registration successful! Welcome to CivicResolve.')
       router.push('/citizen')
     } catch (error) {

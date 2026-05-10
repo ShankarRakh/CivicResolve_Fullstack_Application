@@ -1,4 +1,4 @@
-import type { Complaint, User, Notification, Announcement, DashboardStats } from '@/types'
+import type { User, DashboardStats, Announcement } from '@/types'
 import { CATEGORIES } from './constants'
 
 // Mock current user (for demo purposes)
@@ -7,12 +7,7 @@ export const MOCK_CITIZEN: User = {
   name: 'Shankar Patil',
   phone: '+91 93264 58912',
   email: 'shankar.patil@email.com',
-  role: 'citizen',
-  ward: 'Ward 15',
-  zone: 'Zone 3',
-  avatar: undefined,
-  isVerified: true,
-  aadhaarLinked: false,
+  role: 'CITIZEN',
   createdAt: '2024-06-15T10:00:00Z',
 }
 
@@ -21,13 +16,8 @@ export const MOCK_OFFICER: User = {
   name: 'R.K. Pawar',
   phone: '+91 98765 43210',
   email: 'rk.pawar@municipality.gov.in',
-  role: 'officer',
-  ward: 'Ward 15',
-  zone: 'Zone 3',
+  role: 'OFFICER',
   department: 'Roads',
-  avatar: undefined,
-  isVerified: true,
-  aadhaarLinked: true,
   createdAt: '2022-03-01T10:00:00Z',
 }
 
@@ -36,21 +26,19 @@ export const MOCK_ADMIN: User = {
   name: 'Suresh Kumar',
   phone: '+91 99887 76655',
   email: 'admin@municipality.gov.in',
-  role: 'admin',
-  avatar: undefined,
-  isVerified: true,
-  aadhaarLinked: true,
+  role: 'ADMIN',
   createdAt: '2021-01-01T10:00:00Z',
 }
 
 // Mock complaints
-export const MOCK_COMPLAINTS: Complaint[] = [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const MOCK_COMPLAINTS: any[] = [
   {
     id: 'complaint-1',
     displayId: 'CR-2026-00142',
     description: 'There is a large pothole on the main road near Shivaji signal. Multiple accidents have happened here. Especially dangerous during rain.',
     category: CATEGORIES[1], // Roads
-    subcategory: CATEGORIES[1].subcategories[0], // Pothole
+    subcategory: CATEGORIES[1].subcategories?.[0], // Pothole
     status: 'in_progress',
     priority: 'high',
     location: {
@@ -125,7 +113,7 @@ export const MOCK_COMPLAINTS: Complaint[] = [
     displayId: 'CR-2026-00139',
     description: 'No water supply since yesterday morning. Multiple houses in this area are affected.',
     category: CATEGORIES[0], // Water
-    subcategory: CATEGORIES[0].subcategories[0], // No Supply
+    subcategory: CATEGORIES[0].subcategories?.[0], // No Supply
     status: 'resolved',
     priority: 'medium',
     location: {
@@ -190,7 +178,7 @@ export const MOCK_COMPLAINTS: Complaint[] = [
     displayId: 'CR-2026-00145',
     description: 'Street light not working for past 2 weeks. Area becomes very dark at night.',
     category: CATEGORIES[3], // Lights
-    subcategory: CATEGORIES[3].subcategories[0], // Not Working
+    subcategory: CATEGORIES[3].subcategories?.[0], // Not Working
     status: 'pending',
     priority: 'medium',
     location: {
@@ -227,7 +215,8 @@ export const MOCK_COMPLAINTS: Complaint[] = [
 ]
 
 // Mock notifications
-export const MOCK_NOTIFICATIONS: Notification[] = [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const MOCK_NOTIFICATIONS: any[] = [
   {
     id: 'notif-1',
     type: 'status_update',
