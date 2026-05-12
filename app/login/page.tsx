@@ -14,7 +14,7 @@ import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, loginMock } = useAuth()
   const [activeTab, setActiveTab] = useState('citizen')
 
   // Citizen login state
@@ -50,35 +50,16 @@ export default function LoginPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/auth/citizen/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: citizenEmail.trim().toLowerCase(),
-          password: citizenPassword,
-        }),
-      })
+      const result = await login(
+        citizenEmail.trim().toLowerCase(),
+        citizenPassword
+      )
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        if (data.errors) {
-          const serverErrors: Record<string, string> = {}
-          data.errors.forEach((e: { field: string; message: string }) => {
-            serverErrors[e.field] = e.message
-          })
-          setCitizenErrors(serverErrors)
-        } else {
-          toast.error(data.error || 'Login failed')
-        }
+      if (result.error) {
+        toast.error(result.error)
         return
       }
 
-      // Store JWT token and user data
-      localStorage.setItem('citizen_token', data.token)
-      localStorage.setItem('citizen_user', JSON.stringify(data.user))
-
-      login('CITIZEN')
       toast.success('Login successful!')
       router.push('/citizen')
     } catch (error) {
@@ -110,17 +91,13 @@ export default function LoginPage() {
         return
       }
 
-      // Store JWT token and user data
-      localStorage.setItem('officer_token', data.token)
-      localStorage.setItem('officer_user', JSON.stringify(data.user))
-
-      // Route based on role
+      // Route based on role (officer/admin portals use mock for now)
       if (data.user.role === 'ADMIN') {
-        login('ADMIN')
+        loginMock('ADMIN')
         toast.success('Welcome, Admin!')
         router.push('/admin')
       } else {
-        login('OFFICER')
+        loginMock('OFFICER')
         toast.success('Login successful!')
         router.push('/officer')
       }

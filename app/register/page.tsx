@@ -205,11 +205,16 @@ export default function RegisterPage() {
         return
       }
 
-      // Store JWT token and user data
-      localStorage.setItem('citizen_token', data.token)
-      localStorage.setItem('citizen_user', JSON.stringify(data.user))
+      const loginResult = await login(
+        formData.email.trim().toLowerCase(),
+        formData.password
+      )
 
-      login('CITIZEN')
+      if (loginResult.error) {
+        toast.error(loginResult.error)
+        return
+      }
+
       toast.success('Registration successful! Welcome to CivicResolve.')
       router.push('/citizen')
     } catch (error) {

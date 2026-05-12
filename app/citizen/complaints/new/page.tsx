@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { CategoryIcon } from '@/components/common/category-icon'
-import { CATEGORIES } from '@/lib/constants'
+import { CATEGORIES, WARDS } from '@/lib/constants'
+import { useAuth } from '@/lib/auth-context'
+import { uploadComplaintImage } from '@/lib/supabase-storage'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -46,9 +48,17 @@ const PRIORITIES: { value: ComplaintPriority; label: string; description: string
 
 export default function NewComplaintPage() {
   const router = useRouter()
+  const { user, token } = useAuth()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentStep, setCurrentStep] = useState<Step>('location')
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [submittedComplaint, setSubmittedComplaint] = useState<{
+    id: string
+    displayId: string
+    status: string
+    slaDeadline: string
+  } | null>(null)
 
   // Form state
   const [location, setLocation] = useState({
@@ -110,22 +120,82 @@ export default function NewComplaintPage() {
       toast.error('Please confirm this is a genuine civic issue')
       return
     }
+    if (!token) {
+      toast.error('Please login to submit a complaint')
+      return
+    }
 
     setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setIsLoading(false)
-    setIsSubmitted(true)
-    toast.success('Complaint submitted successfully!')
+    try {
+      // Map ward text to wardId from constants
+      const wardEntry = WARDS.find(w => w.name === location.ward)
+
+      const payload = {
+        categoryId: selectedCategory?.id,
+        subcategoryId: selectedSubcategory?.id,
+        description,
+        priority,
+        address: location.address || undefined,
+        landmark: location.landmark || undefined,
+        latitude: location.lat || undefined,
+        longitude: location.lng || undefined,
+        wardId: wardEntry?.id || undefined,
+        images,
+      }
+
+      const res = await fetch('/api/complaints', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to submit complaint')
+        return
+      }
+
+      setSubmittedComplaint(data)
+      setIsSubmitted(true)
+      toast.success('Complaint submitted successfully!')
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleImageUpload = () => {
-    // Simulate image upload
-    if (images.length >= 5) {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    if (images.length + files.length > 5) {
       toast.error('Maximum 5 images allowed')
       return
     }
-    setImages([...images, `/placeholder.svg?height=200&width=200&text=Image${images.length + 1}`])
-    toast.success('Image uploaded!')
+
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 10MB)`)
+        continue
+      }
+
+      try {
+        const url = await uploadComplaintImage(file, user?.id || 'anonymous')
+        setImages(prev => [...prev, url])
+        toast.success(`${file.name} uploaded!`)
+      } catch (err) {
+        toast.error(`Failed to upload ${file.name}`)
+        console.error(err)
+      }
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const removeImage = (index: number) => {
@@ -146,7 +216,7 @@ export default function NewComplaintPage() {
           <CardContent className="p-6 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Complaint ID</span>
-              <span className="font-mono font-medium">CR-2026-00146</span>
+              <span className="font-mono font-medium">{submittedComplaint?.displayId ?? '—'}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Department</span>
@@ -159,11 +229,11 @@ export default function NewComplaintPage() {
           </CardContent>
         </Card>
         <p className="mt-4 text-sm text-muted-foreground">
-          You will receive updates via SMS at your registered number.
+          You will receive updates in your notification center.
         </p>
         <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild>
-            <Link href="/citizen/complaints/complaint-1">Track Complaint</Link>
+            <Link href={`/citizen/complaints/${submittedComplaint?.id ?? ''}`}>Track Complaint</Link>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/citizen/complaints/new">File Another</Link>
@@ -341,15 +411,24 @@ export default function NewComplaintPage() {
               </div>
 
               <div className="space-y-3">
-                <Label>Upload Photos/Videos (max 5)</Label>
-                <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={handleImageUpload}
+                <Label>Upload Photos (max 5)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+                <div
+                  className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Click to upload or drag and drop
+                    Click to select images
                   </p>
-                  <p className="text-xs text-muted-foreground">JPG, PNG, MP4 (max 10MB)</p>
+                  <p className="text-xs text-muted-foreground">JPG, PNG (max 10MB each)</p>
                 </div>
                 {images.length > 0 && (
                   <div className="flex flex-wrap gap-2">

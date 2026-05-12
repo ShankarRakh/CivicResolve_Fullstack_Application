@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ==========================================
@@ -102,12 +103,14 @@ model User {
 // ==========================================
 
 model Complaint {
-  id          String          @id @default(cuid())
-  citizenId   String          @map("citizen_id")
-  categoryId  String          @map("category_id")
-  description String
-  status      ComplaintStatus @default(PENDING)
-  priority    Priority        @default(MEDIUM)
+  id            String          @id @default(cuid())
+  displayId     String          @unique @map("display_id")
+  citizenId     String          @map("citizen_id")
+  categoryId    String          @map("category_id")
+  subcategoryId String          @map("subcategory_id")
+  description   String
+  status        ComplaintStatus @default(PENDING)
+  priority      Priority        @default(MEDIUM)
 
   // Location (needed for features: auto-assignment, heatmap, duplicate detection)
   address   String?
