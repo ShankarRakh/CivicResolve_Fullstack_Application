@@ -36,7 +36,7 @@ import { StatusBadge } from "@/components/common/status-badge"
 import { PriorityBadge } from "@/components/common/priority-badge"
 import { SLATimer } from "@/components/common/sla-timer"
 import { CategoryIcon } from "@/components/common/category-icon"
-import { MOCK_COMPLAINTS } from "@/lib/mock-data"
+import { MOCK_COMPLAINTS } from "@/lib/mock-complaints"
 import { CATEGORIES } from "@/lib/constants"
 
 export default function OfficerQueuePage() {
@@ -68,7 +68,7 @@ export default function OfficerQueuePage() {
       return new Date(a.slaDeadline).getTime() - new Date(b.slaDeadline).getTime()
     } else if (sortBy === "priority") {
       const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-      return priorityOrder[a.priority] - priorityOrder[b.priority]
+      return priorityOrder[a.priority] - priorityOrder[b.priority] 
     } else {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     }

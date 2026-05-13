@@ -1,8 +1,9 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
+import { apiFetch } from '@/lib/api-client'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -21,17 +22,14 @@ import {
   Plus,
   FileText,
   Bell,
-  User,
-  Settings,
   LogOut,
   Menu,
   X,
   Moon,
   Sun,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState as useMenuState } from 'react'
 import { useTheme } from 'next-themes'
-import { MOCK_NOTIFICATIONS } from '@/lib/mock-data'
 
 const navItems = [
   { href: '/citizen', label: 'Dashboard', icon: Home },
@@ -41,19 +39,28 @@ const navItems = [
 ]
 
 export default function CitizenLayout({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useMenuState(false)
   const { theme, setTheme } = useTheme()
-
-  const unreadCount = MOCK_NOTIFICATIONS.filter(n => !n.isRead).length
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, isLoading, router])
+
+  // Fetch unread notification count
+  useEffect(() => {
+    if (!isAuthenticated) return
+    apiFetch<{ items: { isRead: boolean }[] }>('/api/notifications')
+      .then(data => {
+        setUnreadCount(data.items.filter(n => !n.isRead).length)
+      })
+      .catch(() => {})
+  }, [isAuthenticated])
 
   if (!isAuthenticated || !user) {
     return null
@@ -147,19 +154,6 @@ export default function CitizenLayout({ children }: { children: React.ReactNode 
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/citizen/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/citizen/settings" className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
@@ -216,7 +210,6 @@ export default function CitizenLayout({ children }: { children: React.ReactNode 
             { href: '/citizen', icon: Home, label: 'Home' },
             { href: '/citizen/complaints/new', icon: Plus, label: 'New' },
             { href: '/citizen/complaints', icon: FileText, label: 'Complaints' },
-            { href: '/citizen/profile', icon: User, label: 'Profile' },
           ].map((item) => (
             <Link
               key={item.href}

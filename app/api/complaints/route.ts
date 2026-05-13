@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/jwt'
+import { getAuthPayload } from '@/lib/api-auth'
 import { CATEGORIES } from '@/lib/constants'
 import { findNearestWardId } from '@/lib/geo'
 import { z } from 'zod'
@@ -64,23 +64,10 @@ function getSlaHours(categoryId: string, subcategoryId: string): number {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Auth check — get userId from Bearer token (primary) or cookie (fallback)
-    const authHeader = request.headers.get('authorization')
-    let token: string | undefined
-
-    if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1]
-    } else {
-      token = request.cookies.get('civicresolve-token')?.value
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const payload = verifyToken(token)
+    // 1. Auth check
+    const payload = getAuthPayload(request)
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // 2. Parse and validate body
@@ -180,6 +167,67 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error('POST /api/complaints error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// ==========================================
+// GET /api/complaints — list for current citizen
+// ==========================================
+
+export async function GET(request: NextRequest) {
+  try {
+    const payload = getAuthPayload(request)
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const url = new URL(request.url)
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10)
+    const sort = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc'
+
+    const [items, total] = await Promise.all([
+      prisma.complaint.findMany({
+        where: { citizenId: payload.userId },
+        orderBy: { createdAt: sort as 'asc' | 'desc' },
+        skip: offset,
+        take: limit,
+        include: {
+          ward: { select: { id: true, name: true, zone: true } },
+          department: { select: { id: true, name: true } },
+          assignedOfficer: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.complaint.count({ where: { citizenId: payload.userId } }),
+    ])
+
+    return NextResponse.json({
+      items: items.map((c) => ({
+        id: c.id,
+        displayId: c.displayId,
+        description: c.description,
+        categoryId: c.categoryId,
+        subcategoryId: c.subcategoryId,
+        status: c.status,
+        priority: c.priority,
+        address: c.address,
+        latitude: c.latitude ? Number(c.latitude) : null,
+        longitude: c.longitude ? Number(c.longitude) : null,
+        wardId: c.wardId,
+        wardName: c.ward?.name ?? null,
+        wardZone: c.ward?.zone ?? null,
+        departmentName: c.department?.name ?? null,
+        assignedOfficerName: c.assignedOfficer?.name ?? null,
+        images: c.images,
+        slaDeadline: c.slaDeadline?.toISOString() ?? null,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+      })),
+      total,
+    })
+  } catch (error) {
+    console.error('GET /api/complaints error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

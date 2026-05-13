@@ -7,7 +7,8 @@ import { PublicNavbar } from '@/components/layout/public-navbar'
 import { Footer } from '@/components/layout/footer'
 import { CategoryIcon } from '@/components/common/category-icon'
 import { CATEGORIES } from '@/lib/constants'
-import { MOCK_COMPLAINTS, LANDING_STATS } from '@/lib/mock-data'
+import { LANDING_STATS } from '@/lib/mock-data'
+import { MOCK_COMPLAINTS } from '@/lib/mock-complaints'
 import { StatusBadge } from '@/components/common/status-badge'
 import {
   ArrowRight,
