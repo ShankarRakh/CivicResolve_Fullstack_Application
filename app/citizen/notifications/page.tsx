@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { MOCK_NOTIFICATIONS } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
@@ -14,13 +14,12 @@ import {
   RefreshCw,
   AlertTriangle,
   Clock,
-  Settings,
   CheckCheck,
+  Loader2,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import type { NotificationType } from '@/types'
 
-const NOTIFICATION_ICONS: Record<NotificationType, typeof Bell> = {
+const NOTIFICATION_ICONS: Record<string, typeof Bell> = {
   status_update: RefreshCw,
   comment: MessageSquare,
   assignment: Bell,
@@ -29,19 +28,65 @@ const NOTIFICATION_ICONS: Record<NotificationType, typeof Bell> = {
   system: Bell,
 }
 
+interface NotificationItem {
+  id: string
+  type: string
+  title: string
+  message: string
+  isRead: boolean
+  createdAt: string
+}
+
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchNotifications() {
+      try {
+        const data = await apiFetch<{ items: NotificationItem[] }>('/api/notifications')
+        setNotifications(data.items)
+      } catch (err) {
+        console.error('Fetch notifications error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchNotifications()
+  }, [])
+
   const unreadCount = notifications.filter(n => !n.isRead).length
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })))
-    toast.success('All notifications marked as read')
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.isRead)
+    try {
+      await Promise.all(
+        unread.map(n => apiFetch(`/api/notifications/${n.id}`, { method: 'PATCH' }))
+      )
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })))
+      toast.success('All notifications marked as read')
+    } catch {
+      toast.error('Failed to mark notifications as read')
+    }
   }
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, isRead: true } : n
-    ))
+  const markAsRead = async (id: string) => {
+    try {
+      await apiFetch(`/api/notifications/${id}`, { method: 'PATCH' })
+      setNotifications(notifications.map(n =>
+        n.id === id ? { ...n, isRead: true } : n
+      ))
+    } catch {
+      console.error('Failed to mark notification as read')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -61,11 +106,6 @@ export default function NotificationsPage() {
               Mark all as read
             </Button>
           )}
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/citizen/settings">
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -73,7 +113,7 @@ export default function NotificationsPage() {
       <div className="space-y-3">
         {notifications.length > 0 ? (
           notifications.map((notification) => {
-            const Icon = NOTIFICATION_ICONS[notification.type]
+            const Icon = NOTIFICATION_ICONS[notification.type] || Bell
             return (
               <Card
                 key={notification.id}
@@ -81,7 +121,7 @@ export default function NotificationsPage() {
                   'transition-colors cursor-pointer hover:bg-muted/50',
                   !notification.isRead && 'bg-primary/5 border-primary/20'
                 )}
-                onClick={() => markAsRead(notification.id)}
+                onClick={() => !notification.isRead && markAsRead(notification.id)}
               >
                 <CardContent className="p-4">
                   <div className="flex gap-4">
@@ -112,17 +152,8 @@ export default function NotificationsPage() {
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </span>
-                        {notification.complaintId && (
-                          <Link
-                            href={`/citizen/complaints/${notification.complaintId}`}
-                            className="text-xs text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            View complaint
-                          </Link>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -136,7 +167,7 @@ export default function NotificationsPage() {
               <BellOff className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 font-semibold text-foreground">No notifications</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                You're all caught up! We'll notify you when something happens.
+                You&apos;re all caught up! We&apos;ll notify you when something happens.
               </p>
             </CardContent>
           </Card>

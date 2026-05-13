@@ -22,7 +22,7 @@ import { StatusBadge } from "@/components/common/status-badge"
 import { PriorityBadge } from "@/components/common/priority-badge"
 import { SLATimer } from "@/components/common/sla-timer"
 import { CategoryIcon } from "@/components/common/category-icon"
-import { MOCK_COMPLAINTS } from "@/lib/mock-data"
+import { MOCK_COMPLAINTS } from "@/lib/mock-complaints"
 import { useAuth } from "@/lib/auth-context"
 
 export default function OfficerDashboard() {

@@ -23,7 +23,8 @@ import { StatCard } from "@/components/common/stat-card"
 import { StatusBadge } from "@/components/common/status-badge"
 import { PriorityBadge } from "@/components/common/priority-badge"
 import { CategoryIcon } from "@/components/common/category-icon"
-import { MOCK_COMPLAINTS, MOCK_OFFICERS, MOCK_DEPARTMENT_STATS } from "@/lib/mock-data"
+import { MOCK_OFFICERS, MOCK_DEPARTMENT_STATS } from "@/lib/mock-data"
+import { MOCK_COMPLAINTS } from "@/lib/mock-complaints"
 import {
   Bar,
   BarChart,
