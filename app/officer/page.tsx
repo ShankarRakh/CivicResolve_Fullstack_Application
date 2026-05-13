@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { 
   ClipboardList, 
@@ -9,42 +9,81 @@ import {
   AlertTriangle,
   TrendingUp,
   ArrowRight,
-  Calendar,
-  MapPin
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { StatCard } from "@/components/common/stat-card"
 import { StatusBadge } from "@/components/common/status-badge"
 import { PriorityBadge } from "@/components/common/priority-badge"
 import { SLATimer } from "@/components/common/sla-timer"
 import { CategoryIcon } from "@/components/common/category-icon"
-import { MOCK_COMPLAINTS } from "@/lib/mock-complaints"
+import { CATEGORIES } from "@/lib/constants"
 import { useAuth } from "@/lib/auth-context"
+import { apiFetch } from "@/lib/api-client"
+
+// Resolve category/subcategory info from the CATEGORIES constant
+function resolveCategory(categoryId: string) {
+  return CATEGORIES.find(c => c.id === categoryId)
+}
+function resolveSubcategory(categoryId: string, subcategoryId: string) {
+  const cat = resolveCategory(categoryId)
+  return cat?.subcategories?.find(s => s.id === subcategoryId)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Complaint = any
+interface Stats {
+  total: number
+  pending: number
+  assigned: number
+  inProgress: number
+  resolved: number
+  resolvedToday: number
+  slaBreached: number
+}
 
 export default function OfficerDashboard() {
   const { user } = useAuth()
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month">("today")
+  const [complaints, setComplaints] = useState<Complaint[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Filter complaints assigned to officer
-  const assignedComplaints = MOCK_COMPLAINTS.filter(c => c.assignedOfficerId === "officer-1")
-  const pendingComplaints = assignedComplaints.filter(c => ["pending", "in_progress"].includes(c.status))
-  const resolvedToday = assignedComplaints.filter(c => c.status === "resolved").length
-  const slaBreached = assignedComplaints.filter(c => {
-    const deadline = new Date(c.slaDeadline)
-    return deadline < new Date() && c.status !== "resolved"
-  }).length
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true)
+      try {
+        const [complaintsRes, statsRes] = await Promise.all([
+          apiFetch<{ items: Complaint[] }>('/api/complaints'),
+          apiFetch<Stats>('/api/complaints/stats'),
+        ])
+        setComplaints(complaintsRes.items)
+        setStats(statsRes)
+      } catch (err) {
+        console.error('Failed to fetch officer data:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
-  const stats = [
+  // Derived data
+  const pendingComplaints = complaints.filter(c =>
+    ['PENDING', 'ASSIGNED', 'IN_PROGRESS'].includes(c.status)
+  )
+  const resolvedToday = stats?.resolvedToday ?? 0
+  const slaBreached = stats?.slaBreached ?? 0
+
+  const statCards = [
     {
       title: "Pending Tasks",
       value: pendingComplaints.length,
       icon: ClipboardList,
       description: "Complaints assigned to you",
-      trend: { value: 3, isPositive: false },
+      trend: { value: pendingComplaints.length, isPositive: false },
       color: "primary" as const
     },
     {
@@ -52,7 +91,7 @@ export default function OfficerDashboard() {
       value: resolvedToday,
       icon: CheckCircle2,
       description: "Complaints closed today",
-      trend: { value: 15, isPositive: true },
+      trend: { value: resolvedToday, isPositive: true },
       color: "success" as const
     },
     {
@@ -60,26 +99,42 @@ export default function OfficerDashboard() {
       value: slaBreached,
       icon: AlertTriangle,
       description: "Overdue complaints",
-      trend: { value: 2, isPositive: false },
+      trend: { value: slaBreached, isPositive: false },
       color: "danger" as const
     },
     {
-      title: "Avg Resolution",
-      value: "2.5 days",
+      title: "Total Assigned",
+      value: stats?.total ?? 0,
       icon: Clock,
-      description: "Average time to resolve",
-      trend: { value: 8, isPositive: true },
+      description: "All complaints assigned",
+      trend: { value: stats?.resolved ?? 0, isPositive: true },
       color: "warning" as const
     },
   ]
 
-  // Get urgent complaints (approaching SLA)
+  // Get urgent complaints (approaching SLA — within 24h)
   const urgentComplaints = pendingComplaints
     .filter(c => {
+      if (!c.slaDeadline) return false
       const hoursLeft = (new Date(c.slaDeadline).getTime() - Date.now()) / (1000 * 60 * 60)
       return hoursLeft < 24 && hoursLeft > 0
     })
     .slice(0, 3)
+
+  // Performance metrics — computed from real data
+  const totalAssigned = stats?.total ?? 0
+  const totalResolved = stats?.resolved ?? 0
+  const resolutionRate = totalAssigned > 0 ? Math.round((totalResolved / totalAssigned) * 100) : 0
+  const nonBreached = totalAssigned - slaBreached
+  const slaCompliance = totalAssigned > 0 ? Math.round((nonBreached / totalAssigned) * 100) : 0
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -110,7 +165,7 @@ export default function OfficerDashboard() {
 
       {/* Stats grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <StatCard key={stat.title} {...stat} />
         ))}
       </div>
@@ -132,32 +187,36 @@ export default function OfficerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {pendingComplaints.slice(0, 5).map((complaint) => (
-                <Link 
-                  key={complaint.id}
-                  href={`/officer/queue/${complaint.id}`}
-                  className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                >
-                <CategoryIcon icon={complaint.category.icon} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-sm truncate">
-                            {complaint.title ?? complaint.category.name + " — " + complaint.subcategory.name}
+              {pendingComplaints.slice(0, 5).map((complaint: Complaint) => {
+                const cat = resolveCategory(complaint.categoryId)
+                const subcat = resolveSubcategory(complaint.categoryId, complaint.subcategoryId)
+                return (
+                  <Link 
+                    key={complaint.id}
+                    href={`/officer/queue/${complaint.id}`}
+                    className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                  >
+                    <CategoryIcon icon={complaint.categoryIcon || cat?.icon || 'MoreHorizontal'} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm truncate">
+                            {(complaint.categoryName || cat?.name || 'Unknown') + " — " + (subcat?.name || complaint.subcategoryId)}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {complaint.displayId} · {complaint.location.address}
+                            {complaint.displayId} · {complaint.address || 'No address'}
                           </p>
+                        </div>
+                        <PriorityBadge priority={complaint.priority} />
                       </div>
-                      <PriorityBadge priority={complaint.priority} />
+                      <div className="flex items-center gap-3 mt-2">
+                        <StatusBadge status={complaint.status} />
+                        {complaint.slaDeadline && <SLATimer deadline={complaint.slaDeadline} compact />}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <StatusBadge status={complaint.status} />
-                      <SLATimer deadline={complaint.slaDeadline} compact />
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                )
+              })}
               {pendingComplaints.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -181,24 +240,28 @@ export default function OfficerDashboard() {
           <CardContent>
             <div className="space-y-4">
               {urgentComplaints.length > 0 ? (
-                urgentComplaints.map((complaint) => (
-                  <Link
-                    key={complaint.id}
-                    href={`/officer/queue/${complaint.id}`}
-                    className="block p-3 rounded-lg border border-warning/50 bg-warning/5 hover:bg-warning/10 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-warning">SLA EXPIRING SOON</span>
-                      <SLATimer deadline={complaint.slaDeadline} compact />
-                    </div>
-                    <p className="font-medium text-sm">
-                        {complaint.title ?? complaint.category.name + " — " + complaint.subcategory.name}
+                urgentComplaints.map((complaint: Complaint) => {
+                  const cat = resolveCategory(complaint.categoryId)
+                  const subcat = resolveSubcategory(complaint.categoryId, complaint.subcategoryId)
+                  return (
+                    <Link
+                      key={complaint.id}
+                      href={`/officer/queue/${complaint.id}`}
+                      className="block p-3 rounded-lg border border-warning/50 bg-warning/5 hover:bg-warning/10 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-warning">SLA EXPIRING SOON</span>
+                        {complaint.slaDeadline && <SLATimer deadline={complaint.slaDeadline} compact />}
+                      </div>
+                      <p className="font-medium text-sm">
+                        {(complaint.categoryName || cat?.name || 'Unknown') + " — " + (subcat?.name || complaint.subcategoryId)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {complaint.location.address}
-                    </p>
-                  </Link>
-                ))
+                        {complaint.address || 'No address'}
+                      </p>
+                    </Link>
+                  )
+                })
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
                   <CheckCircle2 className="h-10 w-10 mx-auto mb-2 opacity-50" />
@@ -234,33 +297,33 @@ export default function OfficerDashboard() {
             <TrendingUp className="h-5 w-5 text-primary" />
             My Performance
           </CardTitle>
-          <CardDescription>Your resolution metrics this month</CardDescription>
+          <CardDescription>Your resolution metrics</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 sm:grid-cols-3">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Resolution Rate</span>
-                <span className="text-sm font-medium">85%</span>
+                <span className="text-sm font-medium">{resolutionRate}%</span>
               </div>
-              <Progress value={85} className="h-2" />
+              <Progress value={resolutionRate} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">Target: 90%</p>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">SLA Compliance</span>
-                <span className="text-sm font-medium">92%</span>
+                <span className="text-sm font-medium">{slaCompliance}%</span>
               </div>
-              <Progress value={92} className="h-2" />
+              <Progress value={slaCompliance} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">Target: 95%</p>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Citizen Satisfaction</span>
-                <span className="text-sm font-medium">4.2/5</span>
+                <span className="text-sm text-muted-foreground">Total Resolved</span>
+                <span className="text-sm font-medium">{totalResolved}</span>
               </div>
-              <Progress value={84} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">Based on 28 ratings</p>
+              <Progress value={resolutionRate} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">Out of {totalAssigned} assigned</p>
             </div>
           </div>
         </CardContent>

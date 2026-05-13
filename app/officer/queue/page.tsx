@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { 
   Search, 
@@ -9,13 +9,12 @@ import {
   MapPin,
   Clock,
   ChevronRight,
-  AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -36,28 +35,57 @@ import { StatusBadge } from "@/components/common/status-badge"
 import { PriorityBadge } from "@/components/common/priority-badge"
 import { SLATimer } from "@/components/common/sla-timer"
 import { CategoryIcon } from "@/components/common/category-icon"
-import { MOCK_COMPLAINTS } from "@/lib/mock-complaints"
 import { CATEGORIES } from "@/lib/constants"
+import { apiFetch } from "@/lib/api-client"
+
+// Resolve category/subcategory info from the CATEGORIES constant
+function resolveCategory(categoryId: string) {
+  return CATEGORIES.find(c => c.id === categoryId)
+}
+function resolveSubcategory(categoryId: string, subcategoryId: string) {
+  const cat = resolveCategory(categoryId)
+  return cat?.subcategories?.find(s => s.id === subcategoryId)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Complaint = any
 
 export default function OfficerQueuePage() {
+  const [complaints, setComplaints] = useState<Complaint[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"sla" | "priority" | "date">("sla")
 
-  // Filter complaints assigned to officer
-  const assignedComplaints = MOCK_COMPLAINTS.filter(c => c.assignedOfficerId === "officer-1")
+  useEffect(() => {
+    async function fetchComplaints() {
+      setIsLoading(true)
+      try {
+        const res = await apiFetch<{ items: Complaint[] }>('/api/complaints')
+        setComplaints(res.items)
+      } catch (err) {
+        console.error('Failed to fetch complaints:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchComplaints()
+  }, [])
 
   // Apply filters
-  let filteredComplaints = assignedComplaints.filter(complaint => {
+  let filteredComplaints = complaints.filter(complaint => {
     const search = searchQuery.toLowerCase()
+    const cat = resolveCategory(complaint.categoryId)
+    const subcat = resolveSubcategory(complaint.categoryId, complaint.subcategoryId)
+    const title = (cat?.name || '') + ' ' + (subcat?.name || '') + ' ' + complaint.description
     const matchesSearch =
-      (complaint.title ?? complaint.description).toLowerCase().includes(search) ||
+      title.toLowerCase().includes(search) ||
       complaint.displayId.toLowerCase().includes(search) ||
-      complaint.location.address.toLowerCase().includes(search)
+      (complaint.address || '').toLowerCase().includes(search)
 
     const matchesStatus = statusFilter === "all" || complaint.status === statusFilter
-    const matchesCategory = categoryFilter.length === 0 || categoryFilter.includes(complaint.category.id)
+    const matchesCategory = categoryFilter.length === 0 || categoryFilter.includes(complaint.categoryId)
 
     return matchesSearch && matchesStatus && matchesCategory
   })
@@ -65,18 +93,96 @@ export default function OfficerQueuePage() {
   // Sort complaints
   filteredComplaints = [...filteredComplaints].sort((a, b) => {
     if (sortBy === "sla") {
-      return new Date(a.slaDeadline).getTime() - new Date(b.slaDeadline).getTime()
+      const aDeadline = a.slaDeadline ? new Date(a.slaDeadline).getTime() : Infinity
+      const bDeadline = b.slaDeadline ? new Date(b.slaDeadline).getTime() : Infinity
+      return aDeadline - bDeadline
     } else if (sortBy === "priority") {
-      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-      return priorityOrder[a.priority] - priorityOrder[b.priority] 
+      const priorityOrder: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+      return (priorityOrder[a.priority] ?? 4) - (priorityOrder[b.priority] ?? 4) 
     } else {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     }
   })
 
-  const pendingCount = assignedComplaints.filter(c => c.status === "pending").length
-  const inProgressCount = assignedComplaints.filter(c => c.status === "in_progress").length
-  const resolvedCount = assignedComplaints.filter(c => c.status === "resolved").length
+  const pendingCount = complaints.filter(c => c.status === "PENDING" || c.status === "ASSIGNED").length
+  const inProgressCount = complaints.filter(c => c.status === "IN_PROGRESS").length
+  const resolvedCount = complaints.filter(c => c.status === "RESOLVED").length
+
+  // Shared complaint list renderer
+  const renderComplaintList = (items: Complaint[]) => (
+    <Card>
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {items.length > 0 ? (
+            items.map((complaint: Complaint) => {
+              const cat = resolveCategory(complaint.categoryId)
+              const subcat = resolveSubcategory(complaint.categoryId, complaint.subcategoryId)
+              return (
+                <Link
+                  key={complaint.id}
+                  href={`/officer/queue/${complaint.id}`}
+                  className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <CategoryIcon icon={complaint.categoryIcon || cat?.icon || 'MoreHorizontal'} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {(complaint.categoryName || cat?.name || 'Unknown') + " — " + (subcat?.name || complaint.subcategoryId)}
+                          </p>
+                          <PriorityBadge priority={complaint.priority} />
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {complaint.displayId}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-1">
+                      {complaint.description}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3 mt-3">
+                      <StatusBadge status={complaint.status} />
+                      {complaint.slaDeadline && <SLATimer deadline={complaint.slaDeadline} compact />}
+                      {complaint.address && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          {complaint.address}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {new Date(complaint.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })
+          ) : (
+            <div className="text-center py-12">
+              <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-lg font-medium">No complaints found</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {searchQuery || categoryFilter.length > 0 
+                  ? "Try adjusting your filters"
+                  : "Your queue is empty. Great work!"}
+              </p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -89,19 +195,19 @@ export default function OfficerQueuePage() {
       </div>
 
       {/* Status tabs */}
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs defaultValue="all" className="space-y-4" onValueChange={(v) => setStatusFilter(v === "all" ? "all" : v)}>
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <TabsList>
             <TabsTrigger value="all" onClick={() => setStatusFilter("all")}>
-              All ({assignedComplaints.length})
+              All ({complaints.length})
             </TabsTrigger>
-            <TabsTrigger value="pending" onClick={() => setStatusFilter("pending")}>
+            <TabsTrigger value="PENDING" onClick={() => setStatusFilter("PENDING")}>
               Pending ({pendingCount})
             </TabsTrigger>
-            <TabsTrigger value="in_progress" onClick={() => setStatusFilter("in_progress")}>
+            <TabsTrigger value="IN_PROGRESS" onClick={() => setStatusFilter("IN_PROGRESS")}>
               In Progress ({inProgressCount})
             </TabsTrigger>
-            <TabsTrigger value="resolved" onClick={() => setStatusFilter("resolved")}>
+            <TabsTrigger value="RESOLVED" onClick={() => setStatusFilter("RESOLVED")}>
               Resolved ({resolvedCount})
             </TabsTrigger>
           </TabsList>
@@ -160,94 +266,19 @@ export default function OfficerQueuePage() {
         </div>
 
         <TabsContent value="all" className="mt-0">
-          <Card>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {filteredComplaints.length > 0 ? (
-                  filteredComplaints.map((complaint) => (
-                    <Link
-                      key={complaint.id}
-                      href={`/officer/queue/${complaint.id}`}
-                      className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <CategoryIcon icon={complaint.category.icon} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">
-                                {complaint.title ?? complaint.category.name + " — " + complaint.subcategory.name}
-                              </p>
-                              <PriorityBadge priority={complaint.priority} />
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-0.5">
-                              {complaint.displayId}
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-2 line-clamp-1">
-                          {complaint.description}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-3 mt-3">
-                          <StatusBadge status={complaint.status} />
-                          <SLATimer deadline={complaint.slaDeadline} compact />
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            {complaint.location.address}
-                          </span>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {new Date(complaint.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="text-center py-12">
-                    <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <h3 className="text-lg font-medium">No complaints found</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {searchQuery || categoryFilter.length > 0 
-                        ? "Try adjusting your filters"
-                        : "Your queue is empty. Great work!"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {renderComplaintList(filteredComplaints)}
         </TabsContent>
 
-        <TabsContent value="pending" className="mt-0">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-muted-foreground text-center py-8">
-                Switch to see pending complaints
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="PENDING" className="mt-0">
+          {renderComplaintList(filteredComplaints)}
         </TabsContent>
 
-        <TabsContent value="in_progress" className="mt-0">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-muted-foreground text-center py-8">
-                Switch to see in-progress complaints
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="IN_PROGRESS" className="mt-0">
+          {renderComplaintList(filteredComplaints)}
         </TabsContent>
 
-        <TabsContent value="resolved" className="mt-0">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-muted-foreground text-center py-8">
-                Switch to see resolved complaints
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="RESOLVED" className="mt-0">
+          {renderComplaintList(filteredComplaints)}
         </TabsContent>
       </Tabs>
     </div>

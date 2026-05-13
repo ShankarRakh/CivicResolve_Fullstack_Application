@@ -115,6 +115,50 @@ export async function POST(request: NextRequest) {
       finalWardId = findNearestWardId(data.latitude, data.longitude, parsedWards)
     }
 
+    // 4.6 Auto-assign department + officer based on category
+    //     Map category IDs to department IDs in the database
+    const CATEGORY_TO_DEPT: Record<string, string> = {
+      water: 'dept-water',
+      roads: 'dept-roads',
+      garbage: 'dept-sanitation',
+      lights: 'dept-electrical',
+      drainage: 'dept-water',
+      health: 'dept-health',
+      trees: 'dept-sanitation',
+      building: 'dept-roads',
+      encroachment: 'dept-sanitation',
+      other: 'dept-roads',
+    }
+
+    const departmentId = CATEGORY_TO_DEPT[data.categoryId] || null
+    let assignedOfficerId: string | null = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let officers: any[] = []
+
+    if (departmentId) {
+      // Pick the officer in this department with the fewest active complaints (load-balancing)
+      officers = await prisma.user.findMany({
+        where: { departmentId, role: 'OFFICER' },
+        select: {
+          id: true,
+          name: true,
+          _count: {
+            select: {
+              complaintsAssigned: {
+                where: { status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED'] } }
+              }
+            }
+          }
+        },
+      })
+
+      if (officers.length > 0) {
+        // Sort by fewest active complaints
+        officers.sort((a, b) => a._count.complaintsAssigned - b._count.complaintsAssigned)
+        assignedOfficerId = officers[0].id
+      }
+    }
+
     // 5. Create complaint + timeline entry in a transaction
     const complaint = await prisma.$transaction(async (tx) => {
       const newComplaint = await tx.complaint.create({
@@ -131,6 +175,9 @@ export async function POST(request: NextRequest) {
           wardId: finalWardId,
           images: data.images,
           slaDeadline,
+          departmentId,
+          assignedOfficerId,
+          status: assignedOfficerId ? 'ASSIGNED' : 'PENDING',
         },
       })
 
@@ -142,6 +189,18 @@ export async function POST(request: NextRequest) {
           message: 'Complaint submitted',
         },
       })
+
+      // If auto-assigned, add an assignment timeline entry
+      if (assignedOfficerId) {
+        const officer = officers.find(o => o.id === assignedOfficerId)
+        await tx.complaintTimeline.create({
+          data: {
+            complaintId: newComplaint.id,
+            status: 'ASSIGNED',
+            message: `Complaint auto-assigned to ${officer?.name || 'an officer'}`,
+          },
+        })
+      }
 
       // In-app notification for citizen
       await tx.notification.create({
@@ -187,19 +246,28 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(url.searchParams.get('offset') || '0', 10)
     const sort = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc'
 
+    // Role-aware where clause
+    const where =
+      payload.role === 'OFFICER'
+        ? { assignedOfficerId: payload.userId }
+        : { citizenId: payload.userId }
+
     const [items, total] = await Promise.all([
       prisma.complaint.findMany({
-        where: { citizenId: payload.userId },
+        where,
         orderBy: { createdAt: sort as 'asc' | 'desc' },
         skip: offset,
         take: limit,
         include: {
+          category: { select: { id: true, name: true, icon: true } },
           ward: { select: { id: true, name: true, zone: true } },
           department: { select: { id: true, name: true } },
           assignedOfficer: { select: { id: true, name: true } },
+          citizen: { select: { id: true, name: true, phone: true, email: true } },
+          timeline: { orderBy: { createdAt: 'desc' } },
         },
       }),
-      prisma.complaint.count({ where: { citizenId: payload.userId } }),
+      prisma.complaint.count({ where }),
     ])
 
     return NextResponse.json({
@@ -219,10 +287,22 @@ export async function GET(request: NextRequest) {
         wardZone: c.ward?.zone ?? null,
         departmentName: c.department?.name ?? null,
         assignedOfficerName: c.assignedOfficer?.name ?? null,
+        citizenId: c.citizenId,
+        citizenName: c.citizen?.name ?? null,
+        citizenPhone: c.citizen?.phone ?? null,
+        citizenEmail: c.citizen?.email ?? null,
+        categoryName: c.category?.name ?? null,
+        categoryIcon: c.category?.icon ?? null,
         images: c.images,
         slaDeadline: c.slaDeadline?.toISOString() ?? null,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
+        timeline: c.timeline.map((t) => ({
+          id: t.id,
+          status: t.status,
+          message: t.message,
+          createdAt: t.createdAt.toISOString(),
+        })),
       })),
       total,
     })

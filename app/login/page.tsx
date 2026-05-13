@@ -14,7 +14,7 @@ import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, loginMock } = useAuth()
+  const { login, loginWithToken, loginMock } = useAuth()
   const [activeTab, setActiveTab] = useState('citizen')
 
   // Citizen login state
@@ -91,13 +91,14 @@ export default function LoginPage() {
         return
       }
 
-      // Route based on role (officer/admin portals use mock for now)
+      // Route based on role
       if (data.user.role === 'ADMIN') {
         loginMock('ADMIN')
         toast.success('Welcome, Admin!')
         router.push('/admin')
       } else {
-        loginMock('OFFICER')
+        // Store real JWT so officer API calls authenticate correctly
+        loginWithToken(data.token, data.user)
         toast.success('Login successful!')
         router.push('/officer')
       }

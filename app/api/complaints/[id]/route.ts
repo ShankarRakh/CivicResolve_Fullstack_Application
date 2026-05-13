@@ -18,9 +18,11 @@ export async function GET(
     const complaint = await prisma.complaint.findUnique({
       where: { id },
       include: {
+        category: { select: { id: true, name: true, icon: true } },
         ward: { select: { id: true, name: true, zone: true } },
         department: { select: { id: true, name: true } },
         assignedOfficer: { select: { id: true, name: true } },
+        citizen: { select: { id: true, name: true, phone: true, email: true } },
         timeline: { orderBy: { createdAt: 'desc' } },
       },
     })
@@ -29,9 +31,16 @@ export async function GET(
       return NextResponse.json({ error: 'Complaint not found' }, { status: 404 })
     }
 
-    // Ensure the citizen can only see their own complaints
-    if (complaint.citizenId !== payload.userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Role-aware access control
+    if (payload.role === 'OFFICER') {
+      if (complaint.assignedOfficerId !== payload.userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else {
+      // CITIZEN — only their own complaints
+      if (complaint.citizenId !== payload.userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     return NextResponse.json({
@@ -50,6 +59,12 @@ export async function GET(
       wardZone: complaint.ward?.zone ?? null,
       departmentName: complaint.department?.name ?? null,
       assignedOfficerName: complaint.assignedOfficer?.name ?? null,
+      citizenId: complaint.citizenId,
+      citizenName: complaint.citizen?.name ?? null,
+      citizenPhone: complaint.citizen?.phone ?? null,
+      citizenEmail: complaint.citizen?.email ?? null,
+      categoryName: complaint.category?.name ?? null,
+      categoryIcon: complaint.category?.icon ?? null,
       images: complaint.images,
       slaDeadline: complaint.slaDeadline?.toISOString() ?? null,
       createdAt: complaint.createdAt.toISOString(),

@@ -9,6 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ error?: string }>
+  loginWithToken: (token: string, user: User) => void
   loginMock: (role: UserRole) => void
   logout: () => void
 }
@@ -73,6 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null)
   }, [])
 
+  // Direct token login — used when the caller already has a valid token + user object
+  // (e.g. officer login page which calls its own API and receives {token, user})
+  const loginWithToken = useCallback((tkn: string, usr: User) => {
+    setToken(tkn)
+    setUser(usr)
+    localStorage.setItem(TOKEN_KEY, tkn)
+    localStorage.setItem(USER_KEY, JSON.stringify(usr))
+  }, [])
+
   const logout = useCallback(() => {
     setUser(null)
     setToken(null)
@@ -81,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!user, isLoading, login, loginMock, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!user, isLoading, login, loginWithToken, loginMock, logout }}>
       {children}
     </AuthContext.Provider>
   )
