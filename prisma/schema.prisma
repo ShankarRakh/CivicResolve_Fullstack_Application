@@ -69,6 +69,10 @@ model Ward {
   name String
   zone String // e.g. "Zone 3"
 
+  // GPS center point for auto-assignment (feat-ward)
+  centerLat Decimal? @map("center_lat")
+  centerLng Decimal? @map("center_lng")
+
   complaints Complaint[]
 
   @@map("wards")
