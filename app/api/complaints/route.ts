@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/jwt'
 import { CATEGORIES } from '@/lib/constants'
+import { findNearestWardId } from '@/lib/geo'
 import { z } from 'zod'
 
 // ==========================================
@@ -111,6 +112,22 @@ export async function POST(request: NextRequest) {
     const slaHours = getSlaHours(data.categoryId, data.subcategoryId)
     const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000)
 
+    // 4.5 Auto-assign ward if missing but lat/lng provided
+    let finalWardId = data.wardId || null
+    if (!finalWardId && data.latitude && data.longitude) {
+      const wards = await prisma.ward.findMany({
+        select: { id: true, centerLat: true, centerLng: true }
+      })
+      
+      const parsedWards = wards.map(w => ({
+        id: w.id,
+        centerLat: w.centerLat ? Number(w.centerLat) : null,
+        centerLng: w.centerLng ? Number(w.centerLng) : null
+      }))
+      
+      finalWardId = findNearestWardId(data.latitude, data.longitude, parsedWards)
+    }
+
     // 5. Create complaint + timeline entry in a transaction
     const complaint = await prisma.$transaction(async (tx) => {
       const newComplaint = await tx.complaint.create({
@@ -124,7 +141,7 @@ export async function POST(request: NextRequest) {
           address: data.address,
           latitude: data.latitude,
           longitude: data.longitude,
-          wardId: data.wardId || null,
+          wardId: finalWardId,
           images: data.images,
           slaDeadline,
         },
