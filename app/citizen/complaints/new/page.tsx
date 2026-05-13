@@ -80,12 +80,27 @@ export default function NewComplaintPage() {
   const progress = ((currentStepIndex) / (STEPS.length - 1)) * 100
 
   const handleUseCurrentLocation = () => {
-    // Simulate getting location
-    setLocation({
-      ...location,
-      address: 'Near Shivaji Chowk, Hadapsar, Pune',
-    })
-    toast.success('Location detected!')
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by this browser')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        setLocation((prev) => ({
+          ...prev,
+          lat: latitude,
+          lng: longitude,
+          address: prev.address || 'Current location',
+        }))
+        toast.success('Location detected!')
+      },
+      () => {
+        toast.error('Unable to fetch location. Please allow location access.')
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    )
   }
 
   const handleNext = () => {
@@ -127,9 +142,6 @@ export default function NewComplaintPage() {
 
     setIsLoading(true)
     try {
-      // Map ward text to wardId from constants
-      const wardEntry = WARDS.find(w => w.name === location.ward)
-
       const payload = {
         categoryId: selectedCategory?.id,
         subcategoryId: selectedSubcategory?.id,
@@ -139,7 +151,6 @@ export default function NewComplaintPage() {
         landmark: location.landmark || undefined,
         latitude: location.lat || undefined,
         longitude: location.lng || undefined,
-        wardId: wardEntry?.id || undefined,
         images,
       }
 
