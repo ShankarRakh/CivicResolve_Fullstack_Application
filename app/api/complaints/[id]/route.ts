@@ -66,6 +66,7 @@ export async function GET(
       categoryName: complaint.category?.name ?? null,
       categoryIcon: complaint.category?.icon ?? null,
       images: complaint.images,
+      resolvedImage: complaint.resolvedImage,
       slaDeadline: complaint.slaDeadline?.toISOString() ?? null,
       createdAt: complaint.createdAt.toISOString(),
       updatedAt: complaint.updatedAt.toISOString(),
