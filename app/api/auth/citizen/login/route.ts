@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import pool from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/jwt'
 import { citizenLoginSchema } from '@/lib/validations'
 
@@ -24,24 +24,20 @@ export async function POST(request: NextRequest) {
     const { email, password } = parsed.data
 
     // Query citizen by email with CITIZEN role
-    const result = await pool.query(
-      `SELECT id, email, phone, password_hash, name, role::text
-       FROM users
-       WHERE email = $1 AND role::text = 'CITIZEN'`,
-      [email]
-    )
+    const citizen = await prisma.user.findFirst({
+      where: { email, role: 'CITIZEN' },
+      select: { id: true, email: true, phone: true, passwordHash: true, name: true, role: true }
+    })
 
-    if (result.rows.length === 0) {
+    if (!citizen) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
       )
     }
 
-    const citizen = result.rows[0]
-
     // Check password hash exists
-    if (!citizen.password_hash) {
+    if (!citizen.passwordHash) {
       return NextResponse.json(
         { error: 'Password not set. Please register again.' },
         { status: 401 }
@@ -49,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, citizen.password_hash)
+    const isPasswordValid = await bcrypt.compare(password, citizen.passwordHash)
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },

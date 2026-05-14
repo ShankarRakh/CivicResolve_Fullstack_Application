@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pool from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/jwt'
 
 export async function GET(request: NextRequest) {
@@ -24,23 +24,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch latest user data from DB with department name
-    const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role::text, u.department_id,
-              d.name as department_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.id = $1`,
-      [payload.userId]
-    )
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        departmentId: true,
+        department: {
+          select: {
+            name: true
+          }
+        }
+      }
+    })
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       )
     }
-
-    const user = result.rows[0]
 
     return NextResponse.json({
       user: {
@@ -48,8 +53,8 @@ export async function GET(request: NextRequest) {
         name: user.name,
         email: user.email,
         role: user.role,
-        departmentId: user.department_id,
-        departmentName: user.department_name,
+        departmentId: user.departmentId,
+        departmentName: user.department?.name || null,
       },
     })
   } catch (error) {

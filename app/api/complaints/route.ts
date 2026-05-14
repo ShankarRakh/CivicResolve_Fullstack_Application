@@ -4,6 +4,7 @@ import { getAuthPayload } from '@/lib/api-auth'
 import { CATEGORIES } from '@/lib/constants'
 import { findNearestWardId } from '@/lib/geo'
 import { z } from 'zod'
+import { generateEmbedding } from '@/lib/gemini'
 
 // ==========================================
 // Validation schema
@@ -94,8 +95,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid subcategory' }, { status: 400 })
     }
 
-    // 4. Generate displayId and compute SLA deadline
+    // 4. Generate displayId
     const displayId = await generateDisplayId()
+
+    // 4. Generate AI embedding for duplicate detection
+    let embeddingValues: number[] | null = null;
+    try {
+      embeddingValues = await generateEmbedding(data.description, false);
+    } catch (e) {
+      console.warn("Failed to generate embedding for new complaint, proceeding without it", e);
+    }
+
+    // 4. Generate SLA deadline
     const slaHours = getSlaHours(data.categoryId, data.subcategoryId)
     const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000)
 
@@ -180,6 +191,15 @@ export async function POST(request: NextRequest) {
           status: assignedOfficerId ? 'ASSIGNED' : 'PENDING',
         },
       })
+
+      // Add the pgvector embedding using a raw query (since Unsupported types cannot be set in Prisma create)
+      if (embeddingValues) {
+        await tx.$executeRaw`
+          UPDATE complaints
+          SET embedding = ${embeddingValues}::vector
+          WHERE id = ${newComplaint.id}
+        `;
+      }
 
       // Timeline entry: "Complaint submitted"
       await tx.complaintTimeline.create({

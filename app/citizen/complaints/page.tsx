@@ -13,7 +13,7 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { PriorityBadge } from '@/components/common/priority-badge'
 import { SLATimer } from '@/components/common/sla-timer'
 import { CategoryIcon } from '@/components/common/category-icon'
-import { Plus, Search, MapPin, Calendar, ArrowRight, Loader2 } from 'lucide-react'
+import { Plus, Search, MapPin, Calendar, ArrowRight, Loader2, ThumbsUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import type { ComplaintStatus } from '@/types'
 
@@ -189,6 +189,11 @@ export default function MyComplaintsPage() {
                             <Calendar className="h-3 w-3" />
                             Filed {formatDistanceToNow(new Date(complaint.createdAt), { addSuffix: true })}
                           </span>
+                          {complaint.upvotesCount > 0 && (
+                            <span className="flex items-center gap-1">
+                              • <ThumbsUp className="h-3 w-3" /> {complaint.upvotesCount} upvote{complaint.upvotesCount > 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

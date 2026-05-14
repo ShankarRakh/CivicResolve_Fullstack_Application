@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import pool from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/jwt'
 
 // Officer roles from the Prisma schema
@@ -18,24 +18,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Query the users table for the officer by email with an officer role
-    const result = await pool.query(
-      `SELECT id, email, password_hash, name, role::text, department_id
-       FROM users
-       WHERE email = $1 AND role::text = ANY($2::text[])`,
-      [email, OFFICER_ROLES]
-    )
+    const officer = await prisma.user.findFirst({
+      where: { email, role: { in: ['OFFICER', 'ADMIN'] } },
+      select: { id: true, email: true, passwordHash: true, name: true, role: true, departmentId: true }
+    })
 
-    if (result.rows.length === 0) {
+    if (!officer) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
       )
     }
 
-    const officer = result.rows[0]
-
     // Check password hash exists
-    if (!officer.password_hash) {
+    if (!officer.passwordHash) {
       return NextResponse.json(
         { error: 'Password not set. Contact your administrator.' },
         { status: 401 }
@@ -43,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, officer.password_hash)
+    const isPasswordValid = await bcrypt.compare(password, officer.passwordHash)
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -67,7 +63,7 @@ export async function POST(request: NextRequest) {
         name: officer.name,
         email: officer.email,
         role: officer.role,
-        departmentId: officer.department_id,
+        departmentId: officer.departmentId,
       },
     })
   } catch (error: unknown) {

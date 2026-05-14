@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pool from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/jwt'
 
 export async function GET(request: NextRequest) {
@@ -24,21 +24,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch latest citizen data from DB
-    const result = await pool.query(
-      `SELECT id, email, phone, name, role::text
-       FROM users
-       WHERE id = $1 AND role::text = 'CITIZEN'`,
-      [payload.userId]
-    )
+    const user = await prisma.user.findFirst({
+      where: { id: payload.userId, role: 'CITIZEN' },
+      select: { id: true, email: true, phone: true, name: true, role: true }
+    })
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       )
     }
-
-    const user = result.rows[0]
 
     return NextResponse.json({
       user: {
