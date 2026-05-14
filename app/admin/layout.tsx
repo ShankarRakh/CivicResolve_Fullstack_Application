@@ -7,9 +7,6 @@ import {
   LayoutDashboard, 
   ClipboardList, 
   Users, 
-  BarChart3, 
-  Settings,
-  Bell,
   LogOut,
   Menu,
   X,
@@ -27,19 +24,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "All Complaints", href: "/admin/complaints", icon: ClipboardList },
   { name: "User Management", href: "/admin/users", icon: Users },
-  { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { name: "Department Config", href: "/admin/departments", icon: Building2 },
-  { name: "Settings", href: "/admin/settings", icon: Settings },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -119,11 +112,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Avatar className="h-10 w-10">
                 <AvatarImage src={user?.avatar} />
                 <AvatarFallback className="bg-secondary text-secondary-foreground">
-                  {user?.name?.charAt(0) || "A"}
+                  S
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name || "Administrator"}</p>
+                <p className="text-sm font-medium truncate">Suresh Kumar</p>
                 <p className="text-xs text-sidebar-foreground/70 truncate">System Admin</p>
               </div>
             </div>
@@ -157,38 +150,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="sr-only">Toggle theme</span>
           </Button>
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-              3
-            </span>
-          </Button>
-
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.avatar} />
                   <AvatarFallback className="bg-secondary text-secondary-foreground">
-                    {user?.name?.charAt(0) || "A"}
+                    S
                   </AvatarFallback>
                 </Avatar>
                 <span className="hidden sm:inline-block text-sm font-medium">
-                  {user?.name || "Admin"}
+                  Suresh Kumar
                 </span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href="/admin/settings" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
