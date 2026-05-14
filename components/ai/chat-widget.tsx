@@ -206,6 +206,33 @@ export function ChatWidget() {
     addMessage('user', text)
     setInput('')
 
+    const lower = text.toLowerCase()
+    
+    // 1. Handle Greetings
+    const isGreeting = /^(hi|hello|hey|hii|good morning|good afternoon|greetings)/i.test(lower)
+    if (isGreeting && text.length < 30) {
+      setDraftMode('idle')
+      addMessage('assistant', 'Hello! How can I help you today? You can ask me about policies, or I can help you draft a complaint.')
+      return
+    }
+
+    // 2. Handle RAG FAQ Questions
+    const isQuestion = text.includes('?') || /^(how|what|when|why|can i|is there|sla|tell me about|explain)/i.test(lower)
+    if (isQuestion) {
+      try {
+        const faqRes = await apiFetch<{ isRelevant: boolean; answer: string }>('/api/ai/faq', {
+          method: 'POST',
+          body: JSON.stringify({ query: text })
+        })
+        
+        addMessage('assistant', faqRes.answer)
+        if (draftMode !== 'idle') setDraftMode('idle')
+        return
+      } catch (err) {
+        console.error('FAQ error:', err)
+      }
+    }
+
     if (draftMode === 'idle') {
       setDraft(null)
     }
@@ -221,9 +248,7 @@ export function ChatWidget() {
       return
     }
 
-    const lower = text.toLowerCase()
     const match = text.match(/CR-\d{4}-\d{5}/i)
-    
     if (match) {
       const displayId = match[0].toUpperCase()
       const complaint = complaints.find((c) => c.displayId === displayId)
@@ -295,8 +320,8 @@ export function ChatWidget() {
                   key={m.id}
                   className={
                     m.role === 'assistant'
-                      ? 'text-sm text-muted-foreground'
-                      : 'text-sm text-foreground'
+                      ? 'text-sm text-muted-foreground whitespace-pre-wrap'
+                      : 'text-sm text-foreground whitespace-pre-wrap'
                   }
                 >
                   {m.text}
