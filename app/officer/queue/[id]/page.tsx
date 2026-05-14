@@ -17,6 +17,8 @@ import {
   MessageSquare,
   History,
   Loader2,
+  Upload,
+  X,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -47,6 +49,8 @@ import { CategoryIcon } from "@/components/common/category-icon"
 import { CATEGORIES, COMPLAINT_STATUSES } from "@/lib/constants"
 import { apiFetch } from "@/lib/api-client"
 import { toast } from "sonner"
+import { uploadComplaintImage } from "@/lib/supabase-storage"
+import { useAuth } from "@/lib/auth-context"
 
 // Resolve category/subcategory info from the CATEGORIES constant
 function resolveCategory(categoryId: string) {
@@ -69,6 +73,10 @@ export default function OfficerComplaintDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [resolutionNote, setResolutionNote] = useState("")
+  const [resolvedImage, setResolvedImage] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  
+  const { user } = useAuth()
 
   const fetchComplaint = useCallback(async () => {
     try {
@@ -154,17 +162,39 @@ export default function OfficerComplaintDetailPage() {
     try {
       await apiFetch(`/api/complaints/${params.id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: 'RESOLVED', message: resolutionNote }),
+        body: JSON.stringify({ status: 'RESOLVED', message: resolutionNote, resolvedImage }),
       })
       toast.success("Complaint marked as resolved")
       setShowResolveDialog(false)
       setResolutionNote("")
+      setResolvedImage(null)
       await fetchComplaint() // Refresh
     } catch (err) {
       toast.error("Failed to resolve complaint")
       console.error(err)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(`${file.name} is too large (max 10MB)`)
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const url = await uploadComplaintImage(file, user?.id || 'officer')
+      setResolvedImage(url)
+      toast.success(`Image uploaded successfully!`)
+    } catch (err) {
+      toast.error(`Failed to upload image`)
+      console.error(err)
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -204,12 +234,54 @@ export default function OfficerComplaintDetailPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <Textarea
-                    placeholder="Describe how the issue was resolved..."
-                    value={resolutionNote}
-                    onChange={(e) => setResolutionNote(e.target.value)}
-                    rows={4}
-                  />
+                  <div className="space-y-2">
+                    <Textarea
+                      placeholder="Describe how the issue was resolved..."
+                      value={resolutionNote}
+                      onChange={(e) => setResolutionNote(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Resolution Photo (Optional)</label>
+                    {!resolvedImage ? (
+                      <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          id="resolved-image-upload"
+                          onChange={handleImageUpload}
+                          disabled={isUploading}
+                        />
+                        <label 
+                          htmlFor="resolved-image-upload"
+                          className="cursor-pointer flex flex-col items-center justify-center space-y-2"
+                        >
+                          {isUploading ? (
+                            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                          ) : (
+                            <Upload className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors" />
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            {isUploading ? "Uploading..." : "Click to upload a photo of the resolved issue"}
+                          </span>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={resolvedImage} alt="Resolution" className="object-cover w-full h-full" />
+                        <button
+                          onClick={() => setResolvedImage(null)}
+                          className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-md"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowResolveDialog(false)}>
@@ -217,7 +289,7 @@ export default function OfficerComplaintDetailPage() {
                   </Button>
                   <Button 
                     onClick={handleResolve} 
-                    disabled={!resolutionNote.trim() || isSubmitting}
+                    disabled={!resolutionNote.trim() || isSubmitting || isUploading}
                     className="bg-success hover:bg-success/90 text-success-foreground"
                   >
                     {isSubmitting ? "Resolving..." : "Confirm Resolution"}
@@ -283,6 +355,16 @@ export default function OfficerComplaintDetailPage() {
                         )}
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {complaint.resolvedImage && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-success">Resolution Evidence</h4>
+                  <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted max-w-md">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={complaint.resolvedImage} alt="Resolution evidence" className="object-cover w-full h-full" />
                   </div>
                 </div>
               )}

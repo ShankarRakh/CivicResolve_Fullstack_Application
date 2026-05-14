@@ -132,6 +132,7 @@ model Complaint {
 
   // Media (needed for photo evidence)
   images String[] @default([])
+  resolvedImage String? @map("resolved_image")
 
   // AI Embedding for duplicate detection
   embedding Unsupported("vector(768)")?

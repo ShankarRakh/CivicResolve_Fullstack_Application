@@ -5,8 +5,9 @@ import { z } from 'zod'
 
 // Validation schema
 const statusUpdateSchema = z.object({
-  status: z.enum(['IN_PROGRESS', 'RESOLVED', 'REJECTED']),
+  status: z.enum(['IN_PROGRESS', 'RESOLVED', 'REJECTED', 'PENDING']),
   message: z.string().optional().default(''),
+  resolvedImage: z.string().url().optional().or(z.literal('')),
 })
 
 // PATCH /api/complaints/[id]/status — officer updates complaint status
@@ -36,7 +37,7 @@ export async function PATCH(
       )
     }
 
-    const { status, message } = parsed.data
+    const { status, message, resolvedImage } = parsed.data
 
     // 3. Verify complaint exists and is assigned to this officer
     const complaint = await prisma.complaint.findUnique({
@@ -65,7 +66,10 @@ export async function PATCH(
     const updated = await prisma.$transaction(async (tx) => {
       const updatedComplaint = await tx.complaint.update({
         where: { id },
-        data: { status },
+        data: { 
+          status,
+          ...(resolvedImage && { resolvedImage })
+        },
       })
 
       await tx.complaintTimeline.create({

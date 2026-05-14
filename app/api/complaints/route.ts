@@ -316,6 +316,8 @@ export async function GET(request: NextRequest) {
         categoryName: c.category?.name ?? null,
         categoryIcon: c.category?.icon ?? null,
         images: c.images,
+        resolvedImage: c.resolvedImage,
+        upvotesCount: c.upvotesCount,
         slaDeadline: c.slaDeadline?.toISOString() ?? null,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),

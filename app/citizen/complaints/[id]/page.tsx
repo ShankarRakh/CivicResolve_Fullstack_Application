@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Loader2,
+  CheckCircle2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -48,6 +49,7 @@ interface ComplaintDetail {
   departmentName: string | null
   assignedOfficerName: string | null
   images: string[]
+  resolvedImage: string | null
   slaDeadline: string | null
   createdAt: string
   updatedAt: string
@@ -196,6 +198,26 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Resolution Proof */}
+          {complaint.resolvedImage && (
+            <Card className="border-emerald-200 bg-emerald-50/30">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2 text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Resolution Proof
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="aspect-video rounded-lg overflow-hidden border bg-muted max-w-lg">
+                  <img src={complaint.resolvedImage} alt="Resolution proof" className="h-full w-full object-cover" />
+                </div>
+                <p className="mt-3 text-sm text-emerald-800 font-medium">
+                  The officer has marked this issue as resolved and provided the above photo as evidence.
+                </p>
               </CardContent>
             </Card>
           )}

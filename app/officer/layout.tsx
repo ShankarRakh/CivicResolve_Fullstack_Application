@@ -34,8 +34,6 @@ import { useAuth } from "@/lib/auth-context"
 const navigation = [
   { name: "Dashboard", href: "/officer", icon: LayoutDashboard },
   { name: "My Queue", href: "/officer/queue", icon: ClipboardList },
-  { name: "Area View", href: "/officer/area", icon: MapPin },
-  { name: "Notifications", href: "/officer/notifications", icon: Bell, badge: 5 },
 ]
 
 export default function OfficerLayout({ children }: { children: React.ReactNode }) {
@@ -158,15 +156,7 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
             <span className="sr-only">Toggle theme</span>
           </Button>
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative" asChild>
-            <Link href="/officer/notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-                5
-              </span>
-            </Link>
-          </Button>
+
 
           {/* User menu */}
           <DropdownMenu>
@@ -183,19 +173,7 @@ export default function OfficerLayout({ children }: { children: React.ReactNode 
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href="/officer/profile" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/officer/settings" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

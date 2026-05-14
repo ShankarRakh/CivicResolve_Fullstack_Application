@@ -13,7 +13,7 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { PriorityBadge } from '@/components/common/priority-badge'
 import { SLATimer } from '@/components/common/sla-timer'
 import { CategoryIcon } from '@/components/common/category-icon'
-import { Plus, Search, MapPin, Calendar, ArrowRight, Loader2, ThumbsUp } from 'lucide-react'
+import { Plus, Search, MapPin, Calendar, ArrowRight, Loader2, ThumbsUp, User } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import type { ComplaintStatus } from '@/types'
 
@@ -195,6 +195,12 @@ export default function MyComplaintsPage() {
                             </span>
                           )}
                         </div>
+                        {complaint.assignedOfficerName && (
+                          <div className="flex items-center gap-1 mt-1 text-sm text-indigo-600 dark:text-indigo-400">
+                            <User className="h-3 w-3" />
+                            <span>Assigned to {complaint.assignedOfficerName}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-start sm:items-end gap-2">
