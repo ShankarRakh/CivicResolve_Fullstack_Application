@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -75,6 +75,58 @@ export default function NewComplaintPage() {
   const [images, setImages] = useState<string[]>([])
   const [priority, setPriority] = useState<ComplaintPriority>('MEDIUM')
   const [confirmed, setConfirmed] = useState(false)
+
+  const searchParams = useSearchParams()
+  const draftParam = searchParams.get('draft')
+
+  useEffect(() => {
+    const raw = localStorage.getItem('ai-complaint-draft')
+    if (!raw) return
+
+    try {
+      const draft = JSON.parse(raw) as {
+        categoryId?: string
+        subcategoryId?: string
+        priority?: ComplaintPriority
+        description?: string
+        useCurrentLocation?: boolean
+      }
+
+      if (draft.description) setDescription(draft.description)
+      if (draft.priority) setPriority(draft.priority)
+
+      if (draft.categoryId) {
+        const category = CATEGORIES.find((c) => c.id === draft.categoryId) || null
+        setSelectedCategory(category)
+
+        if (category && draft.subcategoryId) {
+          const sub = category.subcategories?.find((s) => s.id === draft.subcategoryId) || null
+          setSelectedSubcategory(sub)
+        }
+      }
+      
+      // Auto-advance to details step if category is selected
+      if (draft.categoryId && draft.subcategoryId && draft.description) {
+        setCurrentStep('details')
+      } else {
+        setCurrentStep('location')
+      }
+      
+      // Reset submission state so they can submit again
+      setIsSubmitted(false)
+      setSubmittedComplaint(null)
+      setConfirmed(false)
+      
+      if (draft.useCurrentLocation) {
+        // We wait a tiny bit for the component to render, then ask for location
+        setTimeout(() => handleUseCurrentLocation(), 500)
+      }
+    } catch {
+      // Ignore malformed draft payloads
+    } finally {
+      localStorage.removeItem('ai-complaint-draft')
+    }
+  }, [draftParam])
 
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep)
   const progress = ((currentStepIndex) / (STEPS.length - 1)) * 100
