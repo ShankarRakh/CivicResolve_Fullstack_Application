@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useState as useMenuState } from 'react'
 import { useTheme } from 'next-themes'
+import { ChatWidget } from '@/components/ai/chat-widget'
 
 const navItems = [
   { href: '/citizen', label: 'Dashboard', icon: Home },
@@ -229,6 +230,7 @@ export default function CitizenLayout({ children }: { children: React.ReactNode 
       </nav>
       {/* Spacer for bottom nav */}
       <div className="h-16 md:hidden" />
+      <ChatWidget />
     </div>
   )
 }

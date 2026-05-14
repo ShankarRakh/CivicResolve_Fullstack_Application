@@ -25,5 +25,14 @@ export async function apiFetch<T = unknown>(
     throw new Error(data.error || `API error ${res.status}`)
   }
 
-  return res.json()
+  const text = await res.text()
+  if (!text) {
+    return {} as T
+  }
+
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new Error('Invalid JSON response')
+  }
 }

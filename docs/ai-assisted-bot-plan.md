@@ -116,6 +116,120 @@ Build an in-app assistant that helps citizens file complaints faster, explains c
 - `/api/ai/complaint-draft`: LLM classification + structured output.
 - `/api/ai/faq`: RAG retrieval + response.
 
+### LLM Provider
+- Use Google Gemini API (Gemini 1.5 Pro or similar free-tier models).
+- No tools required for Phase 2 beyond standard HTTP requests.
+- LLM is used only for complaint drafting and RAG answers.
+- Status explainer uses cached data and existing APIs (no LLM, no SQL generation).
+
+---
+
+## API Contracts (Agent-Ready)
+
+### POST /api/ai/complaint-draft
+**Request**
+```
+{
+  "message": "string",
+  "language": "en|hi|mr" // optional
+}
+```
+
+**Response**
+```
+{
+  "categoryId": "roads",
+  "subcategoryId": "pothole",
+  "priority": "HIGH",
+  "description": "...",
+  "confidence": 0.0,
+  "clarifyingQuestion": "..." // null if confident
+}
+```
+
+### GET /api/ai/status?complaintId=...
+**Response**
+```
+{
+  "complaintId": "...",
+  "displayId": "CR-2026-00008",
+  "status": "PENDING",
+  "explanation": "Your complaint is in queue...",
+  "slaDeadline": "..."
+}
+```
+
+### POST /api/ai/faq
+**Request**
+```
+{
+  "query": "string"
+}
+```
+
+**Response**
+```
+{
+  "answer": "...",
+  "sources": ["faq/complaints.md#sla"],
+  "outOfScope": false
+}
+```
+
+---
+
+## Prompt Templates (Agent-Ready)
+
+### Complaint Draft Prompt
+**System**
+```
+You are an assistant that extracts structured complaint data.
+Return only valid JSON with keys: categoryId, subcategoryId, priority, description, confidence, clarifyingQuestion.
+Use only category/subcategory IDs provided. If unsure, ask a clarifyingQuestion.
+```
+
+**User**
+```
+Message: <user message>
+Categories: <list of categoryId + subcategoryId>
+```
+
+### FAQ RAG Prompt
+**System**
+```
+You answer only using the provided context.
+If the question is out of scope or no relevant context is found, respond:
+"Please ask a complaint-related question."
+```
+
+**User**
+```
+Question: <user question>
+Context: <retrieved chunks>
+```
+
+---
+
+## Out-of-Scope Handling (FAQ)
+- If retrieved chunks are empty OR similarity below threshold → return:
+  "Please ask a complaint-related question."
+- Do NOT answer general knowledge (e.g., "2 + 2").
+
+---
+
+## UI Integration Details
+- Chat widget mounted in citizen layout.
+- Complaint draft results should map directly to form state.
+- Always require user confirmation before submit.
+
+---
+
+## Gemini Integration Checklist
+- Add `GEMINI_API_KEY` in `.env`.
+- Use `@google/generative-ai` SDK or REST API.
+- Enforce JSON-only output for drafting via system prompt.
+- Set a timeout and retry once on JSON parse failure.
+
 ### Data Contracts
 #### Complaint Draft Response
 ```
