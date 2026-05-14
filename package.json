@@ -11,6 +11,7 @@
     "db:seed": "npx prisma db seed"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-accordion": "1.2.12",

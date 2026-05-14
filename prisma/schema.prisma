@@ -98,6 +98,7 @@ model User {
   headOfDepartment   Department[]   @relation("DeptHead")
   notifications      Notification[]
   feedback           Feedback[]
+  upvotes            ComplaintUpvote[]
 
   @@map("users")
 }
@@ -132,8 +133,14 @@ model Complaint {
   // Media (needed for photo evidence)
   images String[] @default([])
 
+  // AI Embedding for duplicate detection
+  embedding Unsupported("vector(768)")?
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt
+
+  // Upvotes count for quick UI access
+  upvotesCount Int @default(0) @map("upvotes_count")
 
   // Relations
   citizen         User                @relation("CitizenComplaints", fields: [citizenId], references: [id])
@@ -143,6 +150,7 @@ model Complaint {
   assignedOfficer User?               @relation("AssignedOfficer", fields: [assignedOfficerId], references: [id])
   timeline        ComplaintTimeline[]
   feedback        Feedback[]
+  upvotes         ComplaintUpvote[]
 
   @@index([status])
   @@index([citizenId])
@@ -193,4 +201,17 @@ model Feedback {
   citizen   User      @relation(fields: [citizenId], references: [id])
 
   @@map("feedback")
+}
+
+model ComplaintUpvote {
+  id          String   @id @default(cuid())
+  complaintId String   @map("complaint_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([complaintId, userId])
+  @@map("complaint_upvotes")
 }

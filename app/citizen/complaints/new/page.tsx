@@ -27,7 +27,9 @@ import {
   Building2,
   Clock,
   Share2,
+  AlertTriangle,
 } from 'lucide-react'
+import { StatusBadge } from '@/components/common/status-badge'
 import type { Category, SubCategory, ComplaintPriority } from '@/types'
 
 type Step = 'location' | 'category' | 'details' | 'review'
@@ -59,6 +61,12 @@ export default function NewComplaintPage() {
     status: string
     slaDeadline: string
   } | null>(null)
+
+  // AI Duplicate Detection State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [duplicateMatches, setDuplicateMatches] = useState<any[]>([])
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const [bypassedDuplicateCheck, setBypassedDuplicateCheck] = useState(false)
 
   // Form state
   const [location, setLocation] = useState({
@@ -130,7 +138,7 @@ export default function NewComplaintPage() {
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (bypassCheck: boolean | any = false) => {
     if (!confirmed) {
       toast.error('Please confirm this is a genuine civic issue')
       return
@@ -138,6 +146,41 @@ export default function NewComplaintPage() {
     if (!token) {
       toast.error('Please login to submit a complaint')
       return
+    }
+
+    const shouldBypass = typeof bypassCheck === 'boolean' ? bypassCheck : bypassedDuplicateCheck
+
+    if (!shouldBypass) {
+      setIsLoading(true)
+      try {
+        const res = await fetch('/api/complaints/check-duplicate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ description }), 
+        })
+        const data = await res.json()
+        
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to check for duplicates. Please try again.')
+          setIsLoading(false)
+          return
+        }
+        
+        if (data.matches && data.matches.length > 0) {
+          setDuplicateMatches(data.matches)
+          setShowDuplicateModal(true)
+          setIsLoading(false)
+          return
+        }
+      } catch (err) {
+        console.error('Duplicate check failed', err)
+        toast.error('Network error while checking for duplicates. Please try again.')
+        setIsLoading(false)
+        return
+      }
     }
 
     setIsLoading(true)
@@ -211,6 +254,29 @@ export default function NewComplaintPage() {
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index))
+  }
+
+  const handleUpvote = async (complaintId: string) => {
+    setIsLoading(true)
+    try {
+      const res = await fetch(`/api/complaints/${complaintId}/upvote`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Successfully linked your issue to the existing complaint!')
+        router.push('/citizen')
+      } else {
+        toast.error(data.error || 'Failed to link complaint')
+      }
+    } catch (error) {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (isSubmitted) {
@@ -562,6 +628,58 @@ export default function NewComplaintPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Duplicate Detection Modal */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-lg w-full shadow-lg border-destructive/20">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Duplicate Detected
+              </CardTitle>
+              <CardDescription>
+                We found similar complaints in the system. Is your issue related to any of these?
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-h-[50vh] overflow-y-auto">
+              {duplicateMatches.map(match => (
+                <div key={match.id} className="border p-4 rounded-lg bg-muted/50">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="font-medium text-sm">ID: {match.display_id}</p>
+                    <StatusBadge status={match.status} />
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-3">{match.description}</p>
+                  <Button 
+                    size="sm" 
+                    className="w-full mt-3"
+                    disabled={isLoading}
+                    onClick={() => handleUpvote(match.id)}
+                  >
+                    Yes, link my issue to this
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+            <div className="p-6 pt-0 flex justify-end gap-3 border-t mt-4">
+              <Button variant="outline" onClick={() => setShowDuplicateModal(false)} disabled={isLoading}>
+                Cancel
+              </Button>
+              <Button 
+                variant="default"
+                disabled={isLoading}
+                onClick={() => {
+                  setBypassedDuplicateCheck(true)
+                  setShowDuplicateModal(false)
+                  handleSubmit(true)
+                }}
+              >
+                No, mine is different. Submit anyway
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

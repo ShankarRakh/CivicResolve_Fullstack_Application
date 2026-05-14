@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import pool from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/jwt'
 import { citizenRegisterSchema } from '@/lib/validations'
 
@@ -24,11 +24,10 @@ export async function POST(request: NextRequest) {
     const { fullName, email, phone, password, addressLine1, addressLine2, city, pincode, ward } = parsed.data
 
     // Check if email already exists
-    const existingEmail = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    )
-    if (existingEmail.rows.length > 0) {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email }
+    })
+    if (existingEmail) {
       return NextResponse.json(
         { error: 'An account with this email already exists. Please login instead.' },
         { status: 409 }
@@ -36,11 +35,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if phone already exists
-    const existingPhone = await pool.query(
-      'SELECT id FROM users WHERE phone = $1',
-      ['+91' + phone]
-    )
-    if (existingPhone.rows.length > 0) {
+    const existingPhone = await prisma.user.findUnique({
+      where: { phone: '+91' + phone }
+    })
+    if (existingPhone) {
       return NextResponse.json(
         { error: 'An account with this phone number already exists. Please login instead.' },
         { status: 409 }
@@ -54,15 +52,15 @@ export async function POST(request: NextRequest) {
     const fullAddress = [addressLine1, addressLine2, city, pincode].filter(Boolean).join(', ')
 
     // Insert the citizen into the database
-    const result = await pool.query(
-      `INSERT INTO users (
-        id, email, phone, password_hash, name, role
-      ) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'CITIZEN'::"Role")
-      RETURNING id, email, phone, name, role::text`,
-      [email, '+91' + phone, passwordHash, fullName]
-    )
-
-    const user = result.rows[0]
+    const user = await prisma.user.create({
+      data: {
+        email,
+        phone: '+91' + phone,
+        passwordHash,
+        name: fullName,
+        role: 'CITIZEN'
+      }
+    })
 
     // Generate JWT token
     const token = signToken({
@@ -93,14 +91,15 @@ export async function POST(request: NextRequest) {
     const pgError = error as { code?: string; constraint?: string }
 
     // Handle unique constraint violations
-    if (pgError.code === '23505') {
-      if (pgError.constraint?.includes('email')) {
+    if (pgError.code === 'P2002') {
+      const target = (pgError as any).meta?.target as string[];
+      if (target?.includes('email')) {
         return NextResponse.json(
           { error: 'An account with this email already exists.' },
           { status: 409 }
         )
       }
-      if (pgError.constraint?.includes('phone')) {
+      if (target?.includes('phone')) {
         return NextResponse.json(
           { error: 'An account with this phone number already exists.' },
           { status: 409 }
