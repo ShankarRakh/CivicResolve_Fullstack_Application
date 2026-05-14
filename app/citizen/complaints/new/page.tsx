@@ -31,6 +31,21 @@ import {
 } from 'lucide-react'
 import { StatusBadge } from '@/components/common/status-badge'
 import type { Category, SubCategory, ComplaintPriority } from '@/types'
+import dynamic from 'next/dynamic'
+import 'leaflet/dist/leaflet.css'
+
+// Dynamic import to avoid SSR issues with Leaflet
+const MapPicker = dynamic(() => import('@/components/ui/map-picker'), {
+  ssr: false,
+  loading: () => (
+    <div className="aspect-video rounded-lg bg-muted flex items-center justify-center border-2 border-dashed">
+      <div className="text-center text-muted-foreground">
+        <MapPin className="h-8 w-8 mx-auto animate-pulse" />
+        <p className="mt-2 text-sm">Loading map...</p>
+      </div>
+    </div>
+  ),
+})
 
 type Step = 'location' | 'category' | 'details' | 'review'
 
@@ -98,6 +113,9 @@ export default function NewComplaintPage() {
         priority?: ComplaintPriority
         description?: string
         useCurrentLocation?: boolean
+        latitude?: number
+        longitude?: number
+        address?: string
       }
 
       if (draft.description) setDescription(draft.description)
@@ -128,6 +146,16 @@ export default function NewComplaintPage() {
       if (draft.useCurrentLocation) {
         // We wait a tiny bit for the component to render, then ask for location
         setTimeout(() => handleUseCurrentLocation(), 500)
+      }
+
+      // Pre-fill lat/lng from AI draft if provided
+      if (draft.latitude && draft.longitude) {
+        setLocation(prev => ({
+          ...prev,
+          lat: draft.latitude!,
+          lng: draft.longitude!,
+          address: draft.address || prev.address,
+        }))
       }
     } catch {
       // Ignore malformed draft payloads
@@ -447,12 +475,19 @@ export default function NewComplaintPage() {
                     onChange={(e) => setLocation({ ...location, address: e.target.value })}
                   />
                 </div>
-                <div className="aspect-video rounded-lg bg-muted flex items-center justify-center border-2 border-dashed">
-                  <div className="text-center text-muted-foreground">
-                    <MapPin className="h-8 w-8 mx-auto" />
-                    <p className="mt-2 text-sm">Map preview would appear here</p>
-                  </div>
-                </div>
+                <MapPicker
+                  initialLat={location.lat}
+                  initialLng={location.lng}
+                  onChange={(lat, lng, address) => {
+                    setLocation(prev => ({
+                      ...prev,
+                      lat,
+                      lng,
+                      address: address || prev.address,
+                    }))
+                  }}
+                  className="aspect-video rounded-lg overflow-hidden border"
+                />
                 {location.address && (
                   <div className="rounded-lg bg-muted p-3 text-sm">
                     <p className="font-medium">Detected: {location.ward}, {location.zone}</p>

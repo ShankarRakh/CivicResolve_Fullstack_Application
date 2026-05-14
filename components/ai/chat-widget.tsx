@@ -27,6 +27,9 @@ interface DraftResponse {
   description: string
   confidence?: number
   clarifyingQuestion?: string | null
+  latitude?: number
+  longitude?: number
+  address?: string
 }
 
 interface Message {
@@ -113,17 +116,23 @@ export function ChatWidget() {
 
   const requestDraft = async (text: string) => {
     try {
-      const data = await apiFetch<DraftResponse>('/api/ai/complaint-draft', {
+      const data = await apiFetch<DraftResponse & { fallback?: DraftResponse }>('/api/ai/complaint-draft', {
         method: 'POST',
         body: JSON.stringify({ message: text }),
       })
 
-      if (data.clarifyingQuestion) {
+      // Handle clarifying question — the LLM needs more info
+      if (data.clarifyingQuestion && !data.categoryId) {
         addMessage('assistant', data.clarifyingQuestion)
         setDraft(null)
         setDraftMode('awaitingClarification')
         setDraftBaseMessage(text)
         return
+      }
+
+      // If we have a clarifying question BUT also a draft, show both
+      if (data.clarifyingQuestion && data.categoryId) {
+        addMessage('assistant', data.clarifyingQuestion)
       }
 
       setDraftMode('idle')
@@ -135,19 +144,32 @@ export function ChatWidget() {
         `Suggested: ${categoryLabel}, Priority ${data.priority}.`
       )
       if (data.guidance) {
-        addMessage('assistant', `Tip: ${data.guidance}`)
+        addMessage('assistant', `💡 ${data.guidance}`)
       }
       addMessage('assistant', 'Click "Apply draft" to pre-fill the complaint form.')
     } catch (err: any) {
       setDraftMode('idle')
       setDraftBaseMessage('')
       
-      if (err?.message?.toLowerCase().includes('quota') || err?.message?.toLowerCase().includes('rate limit')) {
-        addMessage('assistant', `⚠️ Google Gemini API limit reached: ${err.message}`)
+      const msg = err?.message?.toLowerCase() || ''
+      
+      if (msg.includes('quota') || msg.includes('rate limit')) {
+        addMessage('assistant', '⚠️ AI service is temporarily busy. Please try again in a moment.')
         return
       }
 
-      addMessage('assistant', err?.message || 'Failed to draft. Please try again.')
+      if (msg.includes('unauthorized') || msg.includes('401')) {
+        addMessage('assistant', '🔒 Please log in to use the complaint drafting feature.')
+        return
+      }
+
+      if (msg.includes('gemini') || msg.includes('api key')) {
+        addMessage('assistant', '⚠️ AI service is currently unavailable. You can still file a complaint manually using the "+ New Complaint" button.')
+        return
+      }
+
+      // Generic friendly fallback
+      addMessage('assistant', 'Sorry, I had trouble processing that. Could you try describing the issue again? Include the type of problem and location.')
     }
   }
 
